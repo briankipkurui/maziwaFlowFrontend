@@ -1,9 +1,25 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import HomeView from '@/views/HomeView.vue';
+
 import NotFoundView from '@/views/NotFoundView.vue';
+import HomeView from '@/features/home/HomeView.vue';
+import LoginView from '@/features/auth/views/LoginView.vue';
+import CooperativesView from '@/features/auth/views/CooperativesView.vue';
+import SystemAdminLayout from '@/features/auth/layouts/SystemAdminLayout.vue';
+import CooperativeAdminLayout from '@/features/auth/layouts/CooperativeAdminLayout.vue';
+import CooperativeVetLayout from '@/features/auth/layouts/CooperativeVetLayout.vue';
+// import CooperativesView from '@/features/cooperatives/views/CooperativesView.vue'
+
+// import SystemAdminLayout from '@/layouts/admin/SystemAdminLayout.vue'
+// import CooperativeAdminLayout from '@/layouts/admin/CooperativeAdminLayout.vue'
+// import CooperativeVetLayout from '@/layouts/admin/CooperativeVetLayout.vue'
+
+// import SystemAdminDashboard from '@/features/admin/views/SystemAdminDashboard.vue'
+// import CooperativeAdminDashboard from '@/features/admin/views/CooperativeAdminDashboard.vue'
+// import CooperativeVetDashboard from '@/features/admin/views/CooperativeVetDashboard.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+
   routes: [
     {
       path: '/',
@@ -11,6 +27,60 @@ const router = createRouter({
       component: HomeView,
       meta: { title: 'Home' },
     },
+
+    {
+      path: '/login',
+      name: 'Login',
+      component: LoginView,
+      meta: { title: 'Login' },
+    },
+
+    {
+      path: '/cooperatives',
+      name: 'Cooperatives',
+      component: CooperativesView,
+      meta: { title: 'Cooperatives' },
+    },
+
+    {
+      path: '/admin',
+      component: SystemAdminLayout,
+      meta: { title: 'System Admin' },
+      children: [
+        // {
+        //   path: '',
+        //   name: 'SystemAdminDashboard',
+        //   component: SystemAdminDashboard,
+        // },
+      ],
+    },
+
+    {
+      path: '/cooperative-admin',
+      component: CooperativeAdminLayout,
+      meta: { title: 'Cooperative Admin' },
+      children: [
+        // {
+        //   path: '',
+        //   name: 'CooperativeAdminDashboard',
+        //   component: CooperativeAdminDashboard,
+        // },
+      ],
+    },
+
+    {
+      path: '/cooperative-vet',
+      component: CooperativeVetLayout,
+      meta: { title: 'Cooperative Vet' },
+      children: [
+        // {
+        //   path: '',
+        //   name: 'CooperativeVetDashboard',
+        //   component: CooperativeVetDashboard,
+        // },
+      ],
+    },
+
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
