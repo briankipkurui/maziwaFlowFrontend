@@ -7,15 +7,7 @@ import CooperativesView from '@/features/auth/views/CooperativesView.vue';
 import SystemAdminLayout from '@/features/auth/layouts/SystemAdminLayout.vue';
 import CooperativeAdminLayout from '@/features/auth/layouts/CooperativeAdminLayout.vue';
 import CooperativeVetLayout from '@/features/auth/layouts/CooperativeVetLayout.vue';
-// import CooperativesView from '@/features/cooperatives/views/CooperativesView.vue'
-
-// import SystemAdminLayout from '@/layouts/admin/SystemAdminLayout.vue'
-// import CooperativeAdminLayout from '@/layouts/admin/CooperativeAdminLayout.vue'
-// import CooperativeVetLayout from '@/layouts/admin/CooperativeVetLayout.vue'
-
-// import SystemAdminDashboard from '@/features/admin/views/SystemAdminDashboard.vue'
-// import CooperativeAdminDashboard from '@/features/admin/views/CooperativeAdminDashboard.vue'
-// import CooperativeVetDashboard from '@/features/admin/views/CooperativeVetDashboard.vue'
+import usersViews from '@/features/users/views/usersViews.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -43,15 +35,23 @@ const router = createRouter({
     },
 
     {
+      path: '/cooperative/:id',
+      name: 'Cooperative',
+      component: () => import('@/features/cooperative/CooperativeView.vue'),
+      props: true,
+      meta: { title: 'Cooperative' },
+    },
+
+    {
       path: '/admin',
       component: SystemAdminLayout,
       meta: { title: 'System Admin' },
       children: [
-        // {
-        //   path: '',
-        //   name: 'SystemAdminDashboard',
-        //   component: SystemAdminDashboard,
-        // },
+        {
+          path: 'users',
+          name: 'usersViews',
+          component: usersViews,
+        },
       ],
     },
 

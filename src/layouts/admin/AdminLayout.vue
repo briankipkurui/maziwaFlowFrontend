@@ -88,7 +88,7 @@ const handleMenuClick = (item: UserMenuItem) => {
 </script>
 
 <template>
-  <main class="min-h-screen bg-slate-50 text-slate-900">
+  <main class="min-h-screen bg-slate-50">
     <!-- Sidebar -->
     <aside
       class="fixed left-0 top-0 z-40 h-screen border-r border-slate-200 bg-white shadow-sm transition-all duration-300"
@@ -102,12 +102,12 @@ const handleMenuClick = (item: UserMenuItem) => {
         >
           <div class="flex items-center gap-3">
             <div class="grid grid-cols-3 gap-[3px]">
-              <span v-for="i in 9" :key="i" class="h-2.5 w-2.5 rounded-[2px] bg-blue-600" />
+              <span v-for="i in 9" :key="i" class="h-2.5 w-2.5 rounded-[2px] bg-green-600" />
             </div>
 
             <div v-if="isSidebarOpen" class="leading-tight">
-              <h1 class="text-[25px] font-semibold tracking-tight text-blue-600">MaziwaFlow</h1>
-              <p class="mt-0.5 text-xs font-medium text-slate-400">
+              <h1 class="text-[25px] font-semibold text-green-600">MaziwaFlow</h1>
+              <p class="mt-0.5 text-xs font-medium text-black">
                 {{ subtitle }}
               </p>
             </div>
@@ -116,7 +116,7 @@ const handleMenuClick = (item: UserMenuItem) => {
 
         <!-- Sidebar Title -->
         <div v-if="isSidebarOpen" class="px-5 pb-2 pt-5">
-          <p class="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+          <p class="text-xs font-bold uppercase tracking-[0.18em] text-black">
             {{ title }}
           </p>
         </div>
@@ -133,15 +133,15 @@ const handleMenuClick = (item: UserMenuItem) => {
                 :class="[
                   isSidebarOpen ? 'justify-between' : 'justify-center',
                   isParentActive(item)
-                    ? 'bg-blue-50 text-blue-700 shadow-sm'
-                    : 'text-slate-700 hover:bg-slate-100 hover:text-blue-700',
+                    ? 'bg-green-50 text-green-700 shadow-sm'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-green-700',
                 ]"
                 @click="toggleChildMenu(item.label)"
               >
                 <div class="flex items-center gap-3">
                   <span
                     class="flex h-8 w-8 items-center justify-center rounded-lg text-lg transition"
-                    :class="isParentActive(item) ? 'bg-white text-blue-700' : 'text-slate-500'"
+                    :class="isParentActive(item) ? 'bg-white text-green-700' : 'text-slate-500'"
                   >
                     {{ item.icon }}
                   </span>
@@ -168,14 +168,14 @@ const handleMenuClick = (item: UserMenuItem) => {
                 :class="[
                   isSidebarOpen ? 'justify-between' : 'justify-center',
                   isParentActive(item)
-                    ? 'bg-blue-50 text-blue-700 shadow-sm'
-                    : 'text-slate-700 hover:bg-slate-100 hover:text-blue-700',
+                    ? 'bg-green-50 text-green-700 shadow-sm'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-green-700',
                 ]"
               >
                 <div class="flex items-center gap-3">
                   <span
                     class="flex h-8 w-8 items-center justify-center rounded-lg text-lg transition"
-                    :class="isParentActive(item) ? 'bg-white text-blue-700' : 'text-slate-500'"
+                    :class="isParentActive(item) ? 'bg-white text-green-700' : 'text-slate-500'"
                   >
                     {{ item.icon }}
                   </span>
@@ -205,8 +205,8 @@ const handleMenuClick = (item: UserMenuItem) => {
                   class="block rounded-lg px-3 py-2.5 text-sm font-medium transition"
                   :class="
                     route.path === child.path || route.path.startsWith(child.path + '/')
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-slate-500 hover:bg-slate-100 hover:text-blue-700'
+                      ? 'bg-green-50 text-green-700'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-green-700'
                   "
                 >
                   {{ child.label }}
@@ -239,7 +239,7 @@ const handleMenuClick = (item: UserMenuItem) => {
       <!-- Toggle Button -->
       <button
         type="button"
-        class="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+        class="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl text-slate-700 shadow-sm transition hover:border-green-200 hover:bg-green-50 hover:text-green-600"
         @click="toggleSidebar"
       >
         <span v-if="isSidebarOpen">☰</span>
@@ -248,21 +248,21 @@ const handleMenuClick = (item: UserMenuItem) => {
 
       <div class="flex items-center gap-4">
         <button
-          class="flex h-11 w-11 items-center justify-center rounded-full text-xl text-slate-700 transition hover:bg-blue-50 hover:text-blue-600"
+          class="flex h-11 w-11 items-center justify-center rounded-full text-xl text-slate-700 transition hover:bg-green-50 hover:text-green-600"
           type="button"
         >
           📣
         </button>
 
         <button
-          class="flex h-11 w-11 items-center justify-center rounded-full text-xl text-slate-700 transition hover:bg-blue-50 hover:text-blue-600"
+          class="flex h-11 w-11 items-center justify-center rounded-full text-xl text-slate-700 transition hover:bg-green-50 hover:text-green-600"
           type="button"
         >
           ?
         </button>
 
         <button
-          class="relative flex h-11 w-11 items-center justify-center rounded-full text-xl text-slate-700 transition hover:bg-blue-50 hover:text-blue-600"
+          class="relative flex h-11 w-11 items-center justify-center rounded-full text-xl text-slate-700 transition hover:bg-green-50 hover:text-green-600"
           type="button"
         >
           🔔
@@ -278,11 +278,12 @@ const handleMenuClick = (item: UserMenuItem) => {
           <DropdownMenuTrigger as-child>
             <button
               type="button"
-              class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-base font-bold text-white shadow-md shadow-blue-200 transition hover:bg-blue-700"
+              class="flex h-12 w-12 items-center justify-center rounded-full bg-green-600 text-base font-bold text-white shadow-md shadow-green-200 transition hover:bg-green-700"
             >
               {{ userInitials || 'BM' }}
             </button>
           </DropdownMenuTrigger>
+
           <DropdownMenuContent
             align="end"
             side="bottom"
@@ -303,7 +304,7 @@ const handleMenuClick = (item: UserMenuItem) => {
                 <DropdownMenuItem v-if="item.path" as-child class="cursor-pointer p-0">
                   <RouterLink
                     :to="item.path"
-                    class="block w-full px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-blue-50 hover:text-blue-700"
+                    class="block w-full px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-green-50 hover:text-green-700"
                   >
                     {{ item.label }}
                   </RouterLink>
@@ -315,7 +316,7 @@ const handleMenuClick = (item: UserMenuItem) => {
                   :class="
                     item.danger
                       ? 'text-red-600 focus:text-red-600 hover:bg-red-50'
-                      : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700'
+                      : 'text-slate-700 hover:bg-green-50 hover:text-green-700'
                   "
                   @click="handleMenuClick(item)"
                 >

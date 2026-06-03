@@ -7,9 +7,9 @@ const REFRESH_TOKEN_KEY = 'refreshToken';
 const USER_KEY = 'user';
 
 export const useAuthStore = defineStore('auth', () => {
-  // Hydrate from sessionStorage
-  const storedUser = sessionStorage.getItem(USER_KEY);
-  const storedAccessToken = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  // Hydrate from localStorage
+  const storedUser = localStorage.getItem(USER_KEY);
+  const storedAccessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
 
   // State
   const user = ref<User | null>(storedUser ? JSON.parse(storedUser) : null);
@@ -22,30 +22,30 @@ export const useAuthStore = defineStore('auth', () => {
   function setAuth(userData: User, token: string) {
     user.value = userData;
     accessToken.value = token;
-    // Persist to sessionStorage
-    sessionStorage.setItem(USER_KEY, JSON.stringify(userData));
-    sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+    // Persist to localStorage
+    localStorage.setItem(USER_KEY, JSON.stringify(userData));
+    localStorage.setItem(ACCESS_TOKEN_KEY, token);
   }
 
   function setAccessToken(token: string) {
     accessToken.value = token;
-    sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+    localStorage.setItem(ACCESS_TOKEN_KEY, token);
   }
 
   function setRefreshToken(token: string) {
-    sessionStorage.setItem(REFRESH_TOKEN_KEY, token);
+    localStorage.setItem(REFRESH_TOKEN_KEY, token);
   }
 
   function getRefreshToken(): string | null {
-    return sessionStorage.getItem(REFRESH_TOKEN_KEY);
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
   }
 
   function clearAuth() {
     user.value = null;
     accessToken.value = null;
-    sessionStorage.removeItem(USER_KEY);
-    sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-    sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
   }
 
   return {

@@ -1,7 +1,7 @@
 import { useAuthStore } from '@/stores/auth';
 
 /**
- * Initialize auth state from sessionStorage.
+ * Initialize auth state from localStorage.
  * The store auto-hydrates on creation, so we just verify the state is valid.
  */
 export function initializeAuth(): void {

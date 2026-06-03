@@ -28,7 +28,7 @@ app.use(pinia);
 app.use(router);
 app.use(VueQueryPlugin, { queryClient });
 
-// Initialize auth from sessionStorage
+// Initialize auth from localStorage
 initializeAuth();
 
 app.mount('#app');
