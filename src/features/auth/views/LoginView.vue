@@ -1,20 +1,14 @@
 <script setup lang="ts">
 import BackLayout from '@/layouts/BackLayout.vue';
-import { computed, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { ref } from 'vue';
 import { useLoginMutation } from '../composables/mutations/authMutations';
-
-const route = useRoute();
-const router = useRouter();
+import { useTenant } from '@/composables/useTenant';
 
 const username = ref('');
 const password = ref('');
 const errorMessage = ref('');
 
-const cooperativeCode = computed(() => {
-  const tenant = route.query.tenant;
-  return Array.isArray(tenant) ? (tenant[0]?.toString() ?? '') : (tenant?.toString() ?? '');
-});
+const { tenantCode, hasTenant, goToWithTenant, replaceWithTenant } = useTenant();
 
 const loginMutation = useLoginMutation();
 
@@ -41,12 +35,7 @@ const getErrorMessage = (error: unknown): string => {
 };
 
 const preserveLoginQuery = async () => {
-  await router.replace({
-    path: '/login',
-    query: {
-      tenant: cooperativeCode.value,
-    },
-  });
+  await replaceWithTenant('/login');
 };
 
 const isAdminRole = (roleName?: string | null) => {
@@ -58,7 +47,7 @@ const isAdminRole = (roleName?: string | null) => {
 const handleLogin = async () => {
   errorMessage.value = '';
 
-  if (!cooperativeCode.value) {
+  if (!hasTenant.value) {
     errorMessage.value = 'Tenant is missing from the login URL.';
     return;
   }
@@ -75,36 +64,20 @@ const handleLogin = async () => {
 
   try {
     const response = await loginMutation.mutateAsync({
-      cooperativeCode: cooperativeCode.value,
+      cooperativeCode: tenantCode.value ?? '',
       identifier: username.value.trim(),
       password: password.value,
     });
 
-    console.log('LOGIN RESPONSE:', response);
-
     const roleName = response.data.user.role?.name;
 
-    console.log('ROLE NAME:', roleName);
-
     if (isAdminRole(roleName)) {
-      await router.push({
-        path: '/admin',
-        query: {
-          tenant: cooperativeCode.value,
-        },
-      });
-
+      await goToWithTenant('/admin');
       return;
     }
 
-    await router.push({
-      path: '/',
-      query: {
-        tenant: cooperativeCode.value,
-      },
-    });
+    await goToWithTenant('/');
   } catch (error) {
-    console.error('LOGIN ERROR:', error);
     errorMessage.value = getErrorMessage(error);
     await preserveLoginQuery();
   }
@@ -126,8 +99,8 @@ const handleLogin = async () => {
 
           <p class="mt-2 text-sm text-slate-500">Login to continue to MaziwaFlow</p>
 
-          <p v-if="cooperativeCode" class="mt-2 text-xs font-medium text-emerald-600">
-            Tenant: {{ cooperativeCode }}
+          <p v-if="tenantCode" class="mt-2 text-xs font-medium text-emerald-600">
+            Tenant: {{ tenantCode }}
           </p>
 
           <p v-else class="mt-2 text-xs font-medium text-red-600">Missing tenant code</p>

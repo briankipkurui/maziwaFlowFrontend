@@ -8,6 +8,7 @@ import SystemAdminLayout from '@/features/auth/layouts/SystemAdminLayout.vue';
 import CooperativeAdminLayout from '@/features/auth/layouts/CooperativeAdminLayout.vue';
 import CooperativeVetLayout from '@/features/auth/layouts/CooperativeVetLayout.vue';
 import usersViews from '@/features/users/views/usersViews.vue';
+import CooperativeUnionsViews from '@/features/cooperativeUnion/views/cooperativeUnionsViews.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -51,6 +52,11 @@ const router = createRouter({
           path: 'users',
           name: 'usersViews',
           component: usersViews,
+        },
+        {
+          path: 'cooperative-unions',
+          name: 'cooperativeUnionsViews',
+          component: CooperativeUnionsViews,
         },
       ],
     },
