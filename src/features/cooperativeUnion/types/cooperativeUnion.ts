@@ -1,7 +1,6 @@
-export interface CooperativeUnion {
-  id: string;
+export interface CooperativeUnionPayload {
   name: string;
-  description: string | null;
+  description: string;
   county: string;
   subCounty: string;
   division: string;
@@ -13,10 +12,13 @@ export interface CooperativeUnion {
   longitude: string;
   altitude: string;
   precision: string;
+}
+
+export interface CooperativeUnion extends CooperativeUnionPayload {
+  id: string;
   createdAt: string;
   updatedAt: string;
 }
-
 export interface CooperativeUnionResponse {
   totalItems: number;
   results: CooperativeUnion[];
