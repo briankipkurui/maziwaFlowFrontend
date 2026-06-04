@@ -3,12 +3,12 @@ import { createRouter, createWebHistory } from 'vue-router';
 import NotFoundView from '@/views/NotFoundView.vue';
 import HomeView from '@/features/home/HomeView.vue';
 import LoginView from '@/features/auth/views/LoginView.vue';
-import CooperativesView from '@/features/auth/views/CooperativesView.vue';
 import SystemAdminLayout from '@/features/auth/layouts/SystemAdminLayout.vue';
 import CooperativeAdminLayout from '@/features/auth/layouts/CooperativeAdminLayout.vue';
 import CooperativeVetLayout from '@/features/auth/layouts/CooperativeVetLayout.vue';
 import usersViews from '@/features/users/views/usersViews.vue';
 import CooperativeUnionsViews from '@/features/cooperativeUnion/views/cooperativeUnionsViews.vue';
+import CooperativesView from '@/features/cooperatives/views/cooperativesView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -29,21 +29,6 @@ const router = createRouter({
     },
 
     {
-      path: '/cooperatives',
-      name: 'Cooperatives',
-      component: CooperativesView,
-      meta: { title: 'Cooperatives' },
-    },
-
-    {
-      path: '/cooperative/:id',
-      name: 'Cooperative',
-      component: () => import('@/features/cooperative/CooperativeView.vue'),
-      props: true,
-      meta: { title: 'Cooperative' },
-    },
-
-    {
       path: '/admin',
       component: SystemAdminLayout,
       meta: { title: 'System Admin' },
@@ -57,6 +42,11 @@ const router = createRouter({
           path: 'cooperative-unions',
           name: 'cooperativeUnionsViews',
           component: CooperativeUnionsViews,
+        },
+        {
+          path: 'cooperatives',
+          name: 'cooperativesViews',
+          component: CooperativesView,
         },
       ],
     },
