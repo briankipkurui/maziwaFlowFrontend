@@ -1,72 +1,137 @@
 <script setup lang="ts">
 import AdminLayout from '@/layouts/admin/AdminLayout.vue';
 
+import {
+  Building2,
+  FileText,
+  LayoutDashboard,
+  Network,
+  Settings,
+  Users,
+  UsersRound,
+} from 'lucide-vue-next';
+
 const sidebarItems = [
-  { label: 'Dashboard', path: '/admin', icon: '📊' },
+  {
+    label: 'Dashboard',
+    path: '/admin',
+    icon: LayoutDashboard,
+  },
 
   {
     label: 'Cooperative Unions',
     path: '/admin/cooperative-unions',
-    icon: '🏢',
+    icon: Network,
     children: [
-      { label: 'view', path: '/admin/cooperative-unions' },
+      {
+        label: 'Cooperative Unions',
+        path: '/admin/cooperative-unions',
+      },
     ],
   },
-    {
-      label: 'Cooperatives',
-      path: '/admin/cooperatives',
-      icon: '🏢',
-      children: [
-        { label: 'Coperatives', path: '/admin/cooperatives' },
-      ],
-    },
+
   {
-    label: 'CooperativeMembers',
-    path: '/admin/cooperativemembers',
-    icon: '👥',
+    label: 'Cooperatives',
+    path: '/admin/cooperatives',
+    icon: Building2,
     children: [
-      { label: 'Cooperative Members', path: '/admin/cooperativemembers' },
+      {
+        label: 'Cooperatives',
+        path: '/admin/cooperatives',
+      },
     ],
   },
+
+  {
+    label: 'Cooperative Members',
+    path: '/admin/cooperativemembers',
+    icon: UsersRound,
+    children: [
+      {
+        label: 'Cooperative Members',
+        path: '/admin/cooperativemembers',
+      },
+    ],
+  },
+
   {
     label: 'Users',
     path: '/admin/users',
-    icon: '👥',
+    icon: Users,
     children: [
-      { label: 'All Users', path: '/admin/users' },
-      { label: 'Create User', path: '/admin/users/create' },
-      { label: 'Users & Roles', path: '/admin/users/roles' },
-      { label: 'Permissions', path: '/admin/users/permissions' },
+      {
+        label: 'All Users',
+        path: '/admin/users',
+      },
+      {
+        label: 'Create User',
+        path: '/admin/users/create',
+      },
+      {
+        label: 'Users & Roles',
+        path: '/admin/users/roles',
+      },
+      {
+        label: 'Permissions',
+        path: '/admin/users/permissions',
+      },
     ],
   },
 
   {
     label: 'Reports',
     path: '/admin/reports',
-    icon: '📄',
+    icon: FileText,
     children: [
-      { label: 'Milk Reports', path: '/admin/reports/milk' },
-      { label: 'Farmer Reports', path: '/admin/reports/farmers' },
-      { label: 'Payment Reports', path: '/admin/reports/payments' },
+      {
+        label: 'Milk Reports',
+        path: '/admin/reports/milk',
+      },
+      {
+        label: 'Farmer Reports',
+        path: '/admin/reports/farmers',
+      },
+      {
+        label: 'Payment Reports',
+        path: '/admin/reports/payments',
+      },
     ],
   },
 
   {
     label: 'Settings',
     path: '/admin/settings',
-    icon: '⚙️',
+    icon: Settings,
     children: [
-      { label: 'General Settings', path: '/admin/settings' },
-      { label: 'System Settings', path: '/admin/settings/system' },
+      {
+        label: 'General Settings',
+        path: '/admin/settings',
+      },
+      {
+        label: 'System Settings',
+        path: '/admin/settings/system',
+      },
     ],
   },
 ];
 
 const userMenuItems = [
-  { label: 'Home', path: '/admin' },
-  { label: 'My Profile', path: '/admin/profile' },
-  { label: 'Users & Roles', path: '/admin/users/roles' },
-  { label: 'Sign Out', danger: true },
+  {
+    label: 'Home',
+    path: '/admin',
+  },
+  {
+    label: 'My Profile',
+    path: '/admin/profile',
+  },
+  {
+    label: 'Users & Roles',
+    path: '/admin/users/roles',
+  },
+  {
+    label: 'Sign Out',
+    danger: true,
+  },
 ];
 
 const logout = () => {

@@ -1,7 +1,143 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
 
 @theme {
-  --color-primary: #1824aa;
-  --color-secondary: #babab9;
-  --font-sans: 'Poppins', sans-serif;
+  /* Main brand colors */
+  --color-primary: #f7941e;
+  --color-primary-hover: #e78312;
+  --color-primary-foreground: #ffffff;
+
+  --color-secondary: #151515;
+  --color-secondary-foreground: #ffffff;
+
+  --color-surface: #343434;
+  --color-surface-foreground: #e5e7eb;
+
+  /* Page surfaces */
+  --color-background: #151515;
+  --color-foreground: #e5e7eb;
+
+  --color-card: #343434;
+  --color-card-foreground: #e5e7eb;
+
+  --color-popover: #343434;
+  --color-popover-foreground: #e5e7eb;
+
+  /* Text colors */
+  --color-heading: #ffffff;
+  --color-body-text: #e5e7eb;
+  --color-secondary-text: #cbd5e1;
+  --color-muted-text: #94a3b8;
+  --color-subtle-text: #64748b;
+
+  /* Borders and inputs */
+  --color-border: #64748b;
+  --color-input: #64748b;
+  --color-input-hover: #94a3b8;
+  --color-ring: #f7941e;
+
+  /* Status colors */
+  --color-success: #22c55e;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+  --color-error-foreground: #ffffff;
+
+  /* Typography */
+  --font-sans:
+    'Inter',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+
+  --radius-md: 0.5rem;
 }
+
+/*
+  Light theme:
+  Uses only the approved brand palette.
+*/
+.light {
+  /* Sidebar and header */
+  --color-secondary: #ffffff;
+  --color-secondary-foreground: #151515;
+
+  /* Navigation icons, hover states and selected child items */
+  --color-surface: #e5e7eb;
+  --color-surface-foreground: #343434;
+
+  /* Main content area */
+  --color-background: #e5e7eb;
+  --color-foreground: #343434;
+
+  /* Cards and dropdowns */
+  --color-card: #ffffff;
+  --color-card-foreground: #151515;
+
+  --color-popover: #ffffff;
+  --color-popover-foreground: #151515;
+
+  /* Text */
+  --color-heading: #151515;
+  --color-body-text: #343434;
+  --color-secondary-text: #64748b;
+  --color-muted-text: #64748b;
+  --color-subtle-text: #94a3b8;
+
+  /* Borders and inputs */
+  --color-border: #cbd5e1;
+  --color-input: #cbd5e1;
+  --color-input-hover: #94a3b8;
+  --color-ring: #f7941e;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply text-heading;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .form-input {
+    @apply w-full rounded-md border border-input bg-secondary px-3 py-2
+      text-body-text placeholder:text-muted-text
+      transition-colors duration-200
+      hover:border-input-hover
+      focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .form-input-error {
+    @apply border-error focus:border-error focus:ring-error;
+  }
+}
+ 

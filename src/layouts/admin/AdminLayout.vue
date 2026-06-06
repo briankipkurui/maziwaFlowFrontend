@@ -1,6 +1,20 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
+import type { Component } from 'vue';
 import { useRoute } from 'vue-router';
+
+import {
+  Bell,
+  ChevronDown,
+  ChevronUp,
+  CircleHelp,
+  LogOut,
+  Megaphone,
+  Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Sun,
+} from 'lucide-vue-next';
 
 import {
   DropdownMenu,
@@ -19,7 +33,7 @@ type ChildSidebarItem = {
 type SidebarItem = {
   label: string;
   path: string;
-  icon: string;
+  icon: Component;
   badge?: string;
   children?: ChildSidebarItem[];
 };
@@ -29,6 +43,8 @@ type UserMenuItem = {
   path?: string;
   danger?: boolean;
 };
+
+type Theme = 'dark' | 'light';
 
 defineProps<{
   title: string;
@@ -49,6 +65,18 @@ const route = useRoute();
 
 const isSidebarOpen = ref(true);
 const openMenus = ref<string[]>([]);
+const theme = ref<Theme>('dark');
+
+const applyTheme = (selectedTheme: Theme) => {
+  document.documentElement.classList.toggle('light', selectedTheme === 'light');
+
+  localStorage.setItem('theme', selectedTheme);
+};
+
+const toggleTheme = () => {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark';
+  applyTheme(theme.value);
+};
 
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value;
@@ -57,26 +85,26 @@ const toggleSidebar = () => {
 const toggleChildMenu = (label: string) => {
   if (openMenus.value.includes(label)) {
     openMenus.value = openMenus.value.filter((item) => item !== label);
-  } else {
-    openMenus.value.push(label);
+    return;
   }
+
+  openMenus.value.push(label);
 };
 
-const isMenuOpen = (item: SidebarItem) => {
+const isChildActive = (path: string): boolean => {
+  return route.path === path || route.path.startsWith(`${path}/`);
+};
+
+const isMenuOpen = (item: SidebarItem): boolean => {
   return (
     openMenus.value.includes(item.label) ||
-    item.children?.some(
-      (child) => route.path === child.path || route.path.startsWith(child.path + '/'),
-    )
+    item.children?.some((child) => isChildActive(child.path)) === true
   );
 };
 
-const isParentActive = (item: SidebarItem) => {
+const isParentActive = (item: SidebarItem): boolean => {
   return (
-    route.path === item.path ||
-    item.children?.some(
-      (child) => route.path === child.path || route.path.startsWith(child.path + '/'),
-    )
+    route.path === item.path || item.children?.some((child) => isChildActive(child.path)) === true
   );
 };
 
@@ -85,130 +113,201 @@ const handleMenuClick = (item: UserMenuItem) => {
     emit('logout');
   }
 };
+
+onMounted(() => {
+  const savedTheme = localStorage.getItem('theme');
+
+  if (savedTheme === 'dark' || savedTheme === 'light') {
+    theme.value = savedTheme;
+  } else {
+    theme.value = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+
+  applyTheme(theme.value);
+});
 </script>
 
 <template>
-  <main class="min-h-screen bg-slate-50">
+  <main class="min-h-screen bg-background text-foreground">
     <!-- Sidebar -->
     <aside
-      class="fixed left-0 top-0 z-40 h-screen border-r border-slate-200 bg-white shadow-sm transition-all duration-300"
-      :class="isSidebarOpen ? 'w-72' : 'w-20'"
+      class="fixed left-0 top-0 z-40 h-screen border-r border-surface bg-secondary transition-all duration-300"
+      :class="[isSidebarOpen ? 'w-72' : 'w-20', theme === 'light' ? 'shadow-none' : 'shadow-xl']"
     >
       <div class="flex h-full flex-col">
-        <!-- Logo -->
+        <!-- Brand -->
         <div
-          class="flex h-[76px] items-center border-b border-slate-100 px-4"
+          class="flex h-[76px] items-center border-b border-surface px-4"
           :class="isSidebarOpen ? 'justify-start' : 'justify-center'"
         >
           <div class="flex items-center gap-3">
-            <div class="grid grid-cols-3 gap-[3px]">
-              <span v-for="i in 9" :key="i" class="h-2.5 w-2.5 rounded-[2px] bg-green-600" />
+            <div class="grid h-11 w-11 shrink-0 grid-cols-3 gap-[3px] rounded-lg p-2">
+              <span
+                v-for="i in 9"
+                :key="i"
+                class="rounded-[2px]"
+                :class="i === 5 || i === 7 ? 'bg-heading' : 'bg-primary'"
+              />
             </div>
 
-            <div v-if="isSidebarOpen" class="leading-tight">
-              <h1 class="text-[25px] font-semibold text-green-600">MaziwaFlow</h1>
-              <p class="mt-0.5 text-xs font-medium text-black">
+            <div v-if="isSidebarOpen" class="min-w-0 leading-tight">
+              <h1 class="truncate text-[22px] font-extrabold tracking-tight text-heading">
+                Maziwa<span class="text-primary">Flow</span>
+              </h1>
+
+              <p
+                class="mt-1 truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-text"
+              >
                 {{ subtitle }}
               </p>
             </div>
           </div>
         </div>
 
-        <!-- Sidebar Title -->
-        <div v-if="isSidebarOpen" class="px-5 pb-2 pt-5">
-          <p class="text-xs font-bold uppercase tracking-[0.18em] text-black">
+        <!-- Sidebar Heading -->
+        <div v-if="isSidebarOpen" class="px-5 pb-2 pt-6">
+          <p
+            class="text-[10px] font-bold uppercase tracking-[0.22em]"
+            :class="theme === 'light' ? 'text-[#343434]' : 'text-subtle-text'"
+          >
             {{ title }}
           </p>
         </div>
 
-        <!-- Links -->
+        <!-- Navigation -->
         <nav class="flex-1 overflow-y-auto px-3 py-3">
-          <div class="space-y-1.5">
+          <div class="space-y-1">
             <div v-for="item in sidebarItems" :key="item.path">
-              <!-- Parent with children -->
+              <!-- Parent Menu with Children -->
               <button
                 v-if="item.children?.length"
                 type="button"
-                class="group flex w-full items-center rounded-xl px-4 py-3 text-[15px] font-semibold transition-all duration-200"
+                :title="!isSidebarOpen ? item.label : undefined"
+                class="group relative flex w-full items-center rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all duration-200"
                 :class="[
                   isSidebarOpen ? 'justify-between' : 'justify-center',
                   isParentActive(item)
-                    ? 'bg-green-50 text-green-700 shadow-sm'
-                    : 'text-slate-700 hover:bg-slate-100 hover:text-green-700',
+                    ? theme === 'light'
+                      ? 'border-primary bg-primary text-primary-foreground shadow-none'
+                      : 'border-primary bg-primary text-primary-foreground shadow-md'
+                    : theme === 'light'
+                      ? 'border-transparent text-[#343434] hover:border-transparent hover:bg-transparent hover:text-[#151515]'
+                      : 'border-secondary text-secondary-text hover:border-surface hover:bg-surface hover:text-heading',
                 ]"
                 @click="toggleChildMenu(item.label)"
               >
-                <div class="flex items-center gap-3">
+                <span
+                  v-if="isParentActive(item)"
+                  class="absolute -left-3 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-heading"
+                />
+
+                <div class="flex min-w-0 items-center gap-3">
                   <span
-                    class="flex h-8 w-8 items-center justify-center rounded-lg text-lg transition"
-                    :class="isParentActive(item) ? 'bg-white text-green-700' : 'text-slate-500'"
+                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors"
+                    :class="[
+                      isParentActive(item)
+                        ? theme === 'light'
+                          ? 'bg-transparent text-primary-foreground'
+                          : 'bg-primary-hover text-primary-foreground'
+                        : theme === 'light'
+                          ? 'bg-transparent text-[#343434] group-hover:text-primary'
+                          : 'bg-surface text-muted-text group-hover:text-primary',
+                    ]"
                   >
-                    {{ item.icon }}
+                    <component :is="item.icon" class="h-[18px] w-[18px]" :stroke-width="2" />
                   </span>
 
-                  <span v-if="isSidebarOpen">
+                  <span v-if="isSidebarOpen" class="truncate">
                     {{ item.label }}
                   </span>
                 </div>
 
                 <span
                   v-if="isSidebarOpen"
-                  class="text-xs transition-transform duration-200"
-                  :class="isMenuOpen(item) ? 'rotate-180' : ''"
+                  class="ml-2 flex h-5 w-5 shrink-0 items-center justify-center"
                 >
-                  ▼
+                  <ChevronUp v-if="isMenuOpen(item)" class="h-4 w-4" :stroke-width="2.5" />
+
+                  <ChevronDown v-else class="h-4 w-4" :stroke-width="2.5" />
                 </span>
               </button>
 
-              <!-- Parent without children -->
+              <!-- Parent Menu without Children -->
               <RouterLink
                 v-else
                 :to="item.path"
-                class="group flex items-center rounded-xl px-4 py-3 text-[15px] font-semibold transition-all duration-200"
+                :title="!isSidebarOpen ? item.label : undefined"
+                class="group relative flex items-center rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all duration-200"
                 :class="[
                   isSidebarOpen ? 'justify-between' : 'justify-center',
                   isParentActive(item)
-                    ? 'bg-green-50 text-green-700 shadow-sm'
-                    : 'text-slate-700 hover:bg-slate-100 hover:text-green-700',
+                    ? theme === 'light'
+                      ? 'border-primary bg-primary text-primary-foreground shadow-none'
+                      : 'border-primary bg-primary text-primary-foreground shadow-md'
+                    : theme === 'light'
+                      ? 'border-transparent text-[#343434] hover:border-transparent hover:bg-transparent hover:text-[#151515]'
+                      : 'border-secondary text-secondary-text hover:border-surface hover:bg-surface hover:text-heading',
                 ]"
               >
-                <div class="flex items-center gap-3">
+                <span
+                  v-if="isParentActive(item)"
+                  class="absolute -left-3 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-heading"
+                />
+
+                <div class="flex min-w-0 items-center gap-3">
                   <span
-                    class="flex h-8 w-8 items-center justify-center rounded-lg text-lg transition"
-                    :class="isParentActive(item) ? 'bg-white text-green-700' : 'text-slate-500'"
+                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors"
+                    :class="[
+                      isParentActive(item)
+                        ? theme === 'light'
+                          ? 'bg-transparent text-primary-foreground'
+                          : 'bg-primary-hover text-primary-foreground'
+                        : theme === 'light'
+                          ? 'bg-transparent text-[#343434] group-hover:text-primary'
+                          : 'bg-surface text-muted-text group-hover:text-primary',
+                    ]"
                   >
-                    {{ item.icon }}
+                    <component :is="item.icon" class="h-[18px] w-[18px]" :stroke-width="2" />
                   </span>
 
-                  <span v-if="isSidebarOpen">
+                  <span v-if="isSidebarOpen" class="truncate">
                     {{ item.label }}
                   </span>
                 </div>
 
                 <span
                   v-if="item.badge && isSidebarOpen"
-                  class="rounded-full bg-yellow-400 px-2 py-[2px] text-[10px] font-bold text-slate-900"
+                  class="ml-2 rounded-md bg-warning px-2 py-0.5 text-[10px] font-bold text-secondary"
                 >
                   {{ item.badge }}
                 </span>
               </RouterLink>
 
-              <!-- Children -->
+              <!-- Child Menu Items -->
               <div
                 v-if="item.children?.length && isSidebarOpen && isMenuOpen(item)"
-                class="ml-8 mt-2 space-y-1 border-l border-slate-200 pl-4"
+                class="ml-6 mt-2 space-y-1 border-l border-surface pl-4"
               >
                 <RouterLink
                   v-for="child in item.children"
                   :key="child.path"
                   :to="child.path"
-                  class="block rounded-lg px-3 py-2.5 text-sm font-medium transition"
+                  class="relative block rounded-md border px-3 py-2 text-[13px] font-medium transition-all duration-200"
                   :class="
-                    route.path === child.path || route.path.startsWith(child.path + '/')
-                      ? 'bg-green-50 text-green-700'
-                      : 'text-slate-500 hover:bg-slate-100 hover:text-green-700'
+                    isChildActive(child.path)
+                      ? theme === 'light'
+                        ? 'border-primary bg-transparent text-primary shadow-none'
+                        : 'border-primary bg-surface text-primary'
+                      : theme === 'light'
+                        ? 'border-transparent bg-transparent text-[#343434] hover:border-transparent hover:bg-transparent hover:text-[#151515]'
+                        : 'border-secondary text-muted-text hover:border-surface hover:bg-surface hover:text-heading'
                   "
                 >
+                  <span
+                    v-if="isChildActive(child.path)"
+                    class="absolute -left-[18px] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-primary"
+                  />
+
                   {{ child.label }}
                 </RouterLink>
               </div>
@@ -216,71 +315,160 @@ const handleMenuClick = (item: UserMenuItem) => {
           </div>
         </nav>
 
-        <!-- Bottom -->
-        <div class="border-t border-slate-200 p-3">
+        <!-- Logout -->
+        <div class="border-t border-surface p-3">
           <button
             type="button"
-            class="flex w-full items-center rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-red-50 hover:text-red-600"
-            :class="isSidebarOpen ? 'gap-3 justify-start' : 'justify-center'"
+            title="Logout"
+            class="flex w-full items-center rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all duration-200 hover:border-error hover:text-error"
+            :class="[
+              isSidebarOpen ? 'justify-start gap-3' : 'justify-center',
+              theme === 'light'
+                ? 'border-transparent bg-transparent text-[#343434] shadow-none hover:bg-transparent'
+                : 'border-secondary text-muted-text hover:bg-surface',
+            ]"
             @click="emit('logout')"
           >
-            <span class="text-lg">↩</span>
-            <span v-if="isSidebarOpen">Logout</span>
+            <span
+              class="flex h-8 w-8 items-center justify-center rounded-md"
+              :class="theme === 'light' ? 'bg-transparent shadow-none' : 'bg-surface'"
+            >
+              <LogOut class="h-[18px] w-[18px]" :stroke-width="2" />
+            </span>
+
+            <span v-if="isSidebarOpen"> Logout </span>
           </button>
         </div>
       </div>
     </aside>
 
-    <!-- Top Bar -->
+    <!-- Header -->
     <header
-      class="fixed right-0 top-0 z-50 flex h-[76px] items-center justify-between border-b border-slate-200 bg-white/95 px-8 shadow-sm backdrop-blur transition-all duration-300"
-      :class="isSidebarOpen ? 'left-72' : 'left-20'"
+      class="fixed right-0 top-0 z-30 flex h-[76px] items-center justify-between border-b border-surface bg-secondary px-6 transition-all duration-300"
+      :class="[
+        isSidebarOpen ? 'left-72' : 'left-20',
+        theme === 'light' ? 'shadow-none' : 'shadow-lg',
+      ]"
     >
-      <!-- Toggle Button -->
-      <button
-        type="button"
-        class="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl text-slate-700 shadow-sm transition hover:border-green-200 hover:bg-green-50 hover:text-green-600"
-        @click="toggleSidebar"
-      >
-        <span v-if="isSidebarOpen">☰</span>
-        <span v-else>☷</span>
-      </button>
-
       <div class="flex items-center gap-4">
+        <!-- Sidebar Toggle -->
         <button
-          class="flex h-11 w-11 items-center justify-center rounded-full text-xl text-slate-700 transition hover:bg-green-50 hover:text-green-600"
           type="button"
+          title="Toggle sidebar"
+          class="flex h-10 w-10 items-center justify-center rounded-lg border border-transparent bg-transparent text-secondary-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+          @click="toggleSidebar"
         >
-          📣
+          <PanelLeftClose v-if="isSidebarOpen" class="h-5 w-5" :stroke-width="2" />
+
+          <PanelLeftOpen v-else class="h-5 w-5" :stroke-width="2" />
         </button>
 
+        <div class="hidden sm:block">
+          <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-subtle-text">Workspace</p>
+
+          <p class="mt-1 text-sm font-semibold text-heading">
+            {{ title }}
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Theme Toggle -->
         <button
-          class="flex h-11 w-11 items-center justify-center rounded-full text-xl text-slate-700 transition hover:bg-green-50 hover:text-green-600"
           type="button"
+          :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+          class="flex h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+          :class="
+            theme === 'light'
+              ? 'border-transparent bg-transparent shadow-none'
+              : 'border-surface bg-surface'
+          "
+          @click="toggleTheme"
         >
-          ?
+          <Sun v-if="theme === 'dark'" class="h-5 w-5" :stroke-width="2" />
+
+          <Moon v-else class="h-5 w-5" :stroke-width="2" />
         </button>
 
+        <!-- Announcements -->
         <button
-          class="relative flex h-11 w-11 items-center justify-center rounded-full text-xl text-slate-700 transition hover:bg-green-50 hover:text-green-600"
           type="button"
+          title="Announcements"
+          class="flex h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+          :class="
+            theme === 'light'
+              ? 'border-transparent bg-transparent shadow-none'
+              : 'border-secondary hover:border-surface hover:bg-surface'
+          "
         >
-          🔔
+          <Megaphone class="h-5 w-5" :stroke-width="2" />
+        </button>
+
+        <!-- Help -->
+        <button
+          type="button"
+          title="Help"
+          class="flex h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+          :class="
+            theme === 'light'
+              ? 'border-transparent bg-transparent shadow-none'
+              : 'border-secondary hover:border-surface hover:bg-surface'
+          "
+        >
+          <CircleHelp class="h-5 w-5" :stroke-width="2" />
+        </button>
+
+        <!-- Notifications -->
+        <button
+          type="button"
+          title="Notifications"
+          class="relative flex h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+          :class="
+            theme === 'light'
+              ? 'border-transparent bg-transparent shadow-none'
+              : 'border-secondary hover:border-surface hover:bg-surface'
+          "
+        >
+          <Bell class="h-5 w-5" :stroke-width="2" />
+
           <span
-            class="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-pink-600 text-[11px] font-bold text-white"
+            class="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-secondary bg-primary px-1 text-[10px] font-bold text-primary-foreground"
           >
             1
           </span>
         </button>
 
-        <!-- Avatar Dropdown -->
+        <div class="mx-1 hidden h-8 w-px bg-surface sm:block" />
+
+        <!-- User Dropdown -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <button
               type="button"
-              class="flex h-12 w-12 items-center justify-center rounded-full bg-green-600 text-base font-bold text-white shadow-md shadow-green-200 transition hover:bg-green-700"
+              class="flex items-center gap-3 rounded-lg border p-1.5 pr-2 transition-all duration-200 hover:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
+              :class="
+                theme === 'light'
+                  ? 'border-transparent bg-transparent shadow-none'
+                  : 'border-surface bg-surface shadow-sm'
+              "
             >
-              {{ userInitials || 'BM' }}
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground"
+              >
+                {{ userInitials || 'BM' }}
+              </span>
+
+              <span
+                v-if="userName"
+                class="hidden max-w-32 truncate text-sm font-semibold text-heading lg:block"
+              >
+                {{ userName }}
+              </span>
+
+              <ChevronDown
+                class="hidden h-4 w-4 shrink-0 text-muted-text lg:block"
+                :stroke-width="2.5"
+              />
             </button>
           </DropdownMenuTrigger>
 
@@ -288,23 +476,41 @@ const handleMenuClick = (item: UserMenuItem) => {
             align="end"
             side="bottom"
             :side-offset="12"
-            class="z-[9999] w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-0 shadow-xl"
+            class="z-[9999] w-72 overflow-hidden rounded-lg border border-border bg-card p-0 text-card-foreground"
+            :class="theme === 'light' ? 'shadow-none' : 'shadow-xl'"
           >
             <DropdownMenuLabel class="px-5 py-4 font-normal">
-              <p class="text-sm font-medium text-slate-500">Signed in as</p>
-              <p class="mt-1 truncate text-sm font-semibold text-slate-900">
-                {{ userEmail || 'user@email.com' }}
-              </p>
+              <div class="flex items-center gap-3">
+                <span
+                  class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground"
+                >
+                  {{ userInitials || 'BM' }}
+                </span>
+
+                <div class="min-w-0">
+                  <p v-if="userName" class="truncate text-sm font-semibold text-heading">
+                    {{ userName }}
+                  </p>
+
+                  <p class="mt-1 truncate text-xs text-muted-text">
+                    {{ userEmail || 'user@email.com' }}
+                  </p>
+                </div>
+              </div>
             </DropdownMenuLabel>
 
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator class="bg-border" />
 
             <div class="py-2">
               <template v-for="item in userMenuItems" :key="item.label">
-                <DropdownMenuItem v-if="item.path" as-child class="cursor-pointer p-0">
+                <DropdownMenuItem
+                  v-if="item.path"
+                  as-child
+                  class="cursor-pointer p-0 focus:bg-surface"
+                >
                   <RouterLink
                     :to="item.path"
-                    class="block w-full px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-green-50 hover:text-green-700"
+                    class="block w-full px-5 py-3 text-sm font-medium text-secondary-text transition-colors duration-200 hover:bg-surface hover:text-primary"
                   >
                     {{ item.label }}
                   </RouterLink>
@@ -312,11 +518,11 @@ const handleMenuClick = (item: UserMenuItem) => {
 
                 <DropdownMenuItem
                   v-else
-                  class="cursor-pointer px-5 py-3 text-sm font-medium transition"
+                  class="cursor-pointer px-5 py-3 text-sm font-medium transition-colors duration-200"
                   :class="
                     item.danger
-                      ? 'text-red-600 focus:text-red-600 hover:bg-red-50'
-                      : 'text-slate-700 hover:bg-green-50 hover:text-green-700'
+                      ? 'text-error hover:bg-surface focus:bg-surface focus:text-error'
+                      : 'text-secondary-text hover:bg-surface hover:text-primary focus:bg-surface focus:text-primary'
                   "
                   @click="handleMenuClick(item)"
                 >
@@ -334,8 +540,10 @@ const handleMenuClick = (item: UserMenuItem) => {
       class="min-h-screen pt-[76px] transition-all duration-300"
       :class="isSidebarOpen ? 'ml-72' : 'ml-20'"
     >
-      <div class="p-8">
-        <slot />
+      <div class="min-h-[calc(100vh-76px)] bg-background p-5 sm:p-8">
+        <div class="mx-auto max-w-[1600px]">
+          <slot />
+        </div>
       </div>
     </section>
   </main>

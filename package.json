@@ -19,6 +19,7 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "@lucide/vue": "^1.17.0",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/vue-query": "^5.92.9",
     "@vueuse/core": "^14.3.0",
@@ -29,7 +30,7 @@
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "radix-vue": "^1.9.17",
-    "reka-ui": "^2.9.8",
+    "reka-ui": "^2.9.9",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.2.1",
     "tailwindcss-animate": "^1.0.7",
