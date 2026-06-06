@@ -5,30 +5,6 @@ const sidebarItems = [
   { label: 'Dashboard', path: '/admin', icon: '📊' },
 
   {
-    label: 'Cooperative Unions',
-    path: '/admin/cooperative-unions',
-    icon: '🏢',
-    children: [
-      { label: 'view', path: '/admin/cooperative-unions' },
-    ],
-  },
-    {
-      label: 'Cooperatives',
-      path: '/admin/cooperatives',
-      icon: '🏢',
-      children: [
-        { label: 'Coperatives', path: '/admin/cooperatives' },
-      ],
-    },
-  {
-    label: 'CooperativeMembers',
-    path: '/admin/cooperativemembers',
-    icon: '👥',
-    children: [
-      { label: 'Cooperative Members', path: '/admin/cooperativemembers' },
-    ],
-  },
-  {
     label: 'Users',
     path: '/admin/users',
     icon: '👥',
@@ -37,6 +13,17 @@ const sidebarItems = [
       { label: 'Create User', path: '/admin/users/create' },
       { label: 'Users & Roles', path: '/admin/users/roles' },
       { label: 'Permissions', path: '/admin/users/permissions' },
+    ],
+  },
+
+  {
+    label: 'Cooperatives',
+    path: '/admin/cooperatives',
+    icon: '🏢',
+    children: [
+      { label: 'All Cooperatives', path: '/admin/cooperatives' },
+      { label: 'Create Cooperative', path: '/admin/cooperatives/create' },
+      { label: 'Cooperative Unions', path: '/admin/cooperative-unions' },
     ],
   },
 
