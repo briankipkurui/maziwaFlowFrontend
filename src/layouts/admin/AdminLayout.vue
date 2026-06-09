@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Component } from 'vue';
 import { useRoute } from 'vue-router';
 
@@ -59,11 +59,15 @@ defineProps<{
 
 const emit = defineEmits<{
   logout: [];
+  announcements: [];
 }>();
 
 const route = useRoute();
 
+const MOBILE_BREAKPOINT = 768;
+
 const isSidebarOpen = ref(true);
+const isMobile = ref(false);
 const openMenus = ref<string[]>([]);
 const theme = ref<Theme>('dark');
 
@@ -80,6 +84,26 @@ const toggleTheme = () => {
 
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value;
+};
+
+const closeMobileSidebar = () => {
+  if (isMobile.value) {
+    isSidebarOpen.value = false;
+  }
+};
+
+const syncSidebarWithViewport = () => {
+  const mobileViewport = window.innerWidth < MOBILE_BREAKPOINT;
+
+  if (mobileViewport === isMobile.value) {
+    return;
+  }
+
+  isMobile.value = mobileViewport;
+
+  // Hide the sidebar completely on mobile.
+  // Restore the expanded sidebar when returning to desktop.
+  isSidebarOpen.value = !mobileViewport;
 };
 
 const toggleChildMenu = (label: string) => {
@@ -114,7 +138,17 @@ const handleMenuClick = (item: UserMenuItem) => {
   }
 };
 
+watch(
+  () => route.fullPath,
+  () => {
+    closeMobileSidebar();
+  },
+);
+
 onMounted(() => {
+  syncSidebarWithViewport();
+  window.addEventListener('resize', syncSidebarWithViewport);
+
   const savedTheme = localStorage.getItem('theme');
 
   if (savedTheme === 'dark' || savedTheme === 'light') {
@@ -125,14 +159,27 @@ onMounted(() => {
 
   applyTheme(theme.value);
 });
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncSidebarWithViewport);
+});
 </script>
 
 <template>
   <main class="min-h-screen bg-background text-foreground">
     <!-- Sidebar -->
     <aside
-      class="fixed left-0 top-0 z-40 h-screen border-r border-surface bg-secondary transition-all duration-300"
-      :class="[isSidebarOpen ? 'w-72' : 'w-20', theme === 'light' ? 'shadow-none' : 'shadow-xl']"
+      class="fixed left-0 top-0 z-50 h-screen border-r border-surface bg-secondary transition-all duration-300"
+      :class="[
+        isMobile
+          ? isSidebarOpen
+            ? 'w-72 translate-x-0'
+            : 'w-72 -translate-x-full'
+          : isSidebarOpen
+            ? 'w-72 translate-x-0'
+            : 'w-20 translate-x-0',
+        theme === 'light' ? 'shadow-none' : 'shadow-xl',
+      ]"
     >
       <div class="flex h-full flex-col">
         <!-- Brand -->
@@ -248,6 +295,7 @@ onMounted(() => {
                       ? 'border-transparent text-[#343434] hover:border-transparent hover:bg-transparent hover:text-[#151515]'
                       : 'border-secondary text-secondary-text hover:border-surface hover:bg-surface hover:text-heading',
                 ]"
+                @click="closeMobileSidebar"
               >
                 <span
                   v-if="isParentActive(item)"
@@ -302,6 +350,7 @@ onMounted(() => {
                         ? 'border-transparent bg-transparent text-[#343434] hover:border-transparent hover:bg-transparent hover:text-[#151515]'
                         : 'border-secondary text-muted-text hover:border-surface hover:bg-surface hover:text-heading'
                   "
+                  @click="closeMobileSidebar"
                 >
                   <span
                     v-if="isChildActive(child.path)"
@@ -336,17 +385,26 @@ onMounted(() => {
               <LogOut class="h-[18px] w-[18px]" :stroke-width="2" />
             </span>
 
-            <span v-if="isSidebarOpen"> Logout </span>
+            <span v-if="isSidebarOpen">Logout</span>
           </button>
         </div>
       </div>
     </aside>
 
+    <!-- Mobile Sidebar Backdrop -->
+    <button
+      v-if="isMobile && isSidebarOpen"
+      type="button"
+      aria-label="Close sidebar"
+      class="fixed inset-0 z-40 bg-black/50 md:hidden"
+      @click="closeMobileSidebar"
+    />
+
     <!-- Header -->
     <header
-      class="fixed right-0 top-0 z-30 flex h-[76px] items-center justify-between border-b border-surface bg-secondary px-6 transition-all duration-300"
+      class="fixed right-0 top-0 z-30 flex h-[76px] items-center justify-between border-b border-surface bg-secondary transition-all duration-300"
       :class="[
-        isSidebarOpen ? 'left-72' : 'left-20',
+        isMobile ? 'left-0 px-3' : isSidebarOpen ? 'left-72 px-6' : 'left-20 px-6',
         theme === 'light' ? 'shadow-none' : 'shadow-lg',
       ]"
     >
@@ -363,6 +421,7 @@ onMounted(() => {
           <PanelLeftOpen v-else class="h-5 w-5" :stroke-width="2" />
         </button>
 
+        <!-- Workspace Name: Hidden on small screens -->
         <div class="hidden sm:block">
           <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-subtle-text">Workspace</p>
 
@@ -372,12 +431,12 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="flex items-center gap-2 sm:gap-3">
-        <!-- Theme Toggle -->
+      <div class="flex items-center gap-1 sm:gap-2 lg:gap-3">
+        <!-- Theme Toggle: Desktop only -->
         <button
           type="button"
           :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-          class="flex h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+          class="hidden h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring md:flex"
           :class="
             theme === 'light'
               ? 'border-transparent bg-transparent shadow-none'
@@ -390,25 +449,26 @@ onMounted(() => {
           <Moon v-else class="h-5 w-5" :stroke-width="2" />
         </button>
 
-        <!-- Announcements -->
+        <!-- Announcements: Desktop only -->
         <button
           type="button"
           title="Announcements"
-          class="flex h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+          class="hidden h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring md:flex"
           :class="
             theme === 'light'
               ? 'border-transparent bg-transparent shadow-none'
               : 'border-secondary hover:border-surface hover:bg-surface'
           "
+          @click="emit('announcements')"
         >
           <Megaphone class="h-5 w-5" :stroke-width="2" />
         </button>
 
-        <!-- Help -->
+        <!-- Help: Desktop only -->
         <button
           type="button"
           title="Help"
-          class="flex h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
+          class="hidden h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring md:flex"
           :class="
             theme === 'light'
               ? 'border-transparent bg-transparent shadow-none'
@@ -445,7 +505,7 @@ onMounted(() => {
           <DropdownMenuTrigger as-child>
             <button
               type="button"
-              class="flex items-center gap-3 rounded-lg border p-1.5 pr-2 transition-all duration-200 hover:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
+              class="flex items-center gap-2 rounded-lg border p-1 transition-all duration-200 hover:border-primary focus:outline-none focus:ring-2 focus:ring-ring sm:p-1.5 sm:pr-2"
               :class="
                 theme === 'light'
                   ? 'border-transparent bg-transparent shadow-none'
@@ -453,7 +513,7 @@ onMounted(() => {
               "
             >
               <span
-                class="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground"
+                class="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground sm:h-9 sm:w-9 sm:text-sm"
               >
                 {{ userInitials || 'BM' }}
               </span>
@@ -479,6 +539,7 @@ onMounted(() => {
             class="z-[9999] w-72 overflow-hidden rounded-lg border border-border bg-card p-0 text-card-foreground"
             :class="theme === 'light' ? 'shadow-none' : 'shadow-xl'"
           >
+            <!-- User Details -->
             <DropdownMenuLabel class="px-5 py-4 font-normal">
               <div class="flex items-center gap-3">
                 <span
@@ -499,6 +560,42 @@ onMounted(() => {
               </div>
             </DropdownMenuLabel>
 
+            <!-- Mobile Quick Actions -->
+            <div class="md:hidden">
+              <DropdownMenuSeparator class="bg-border" />
+
+              <div class="py-2">
+                <!-- Mobile Theme Toggle -->
+                <DropdownMenuItem
+                  class="cursor-pointer px-5 py-3 text-sm font-medium text-secondary-text transition-colors duration-200 hover:bg-surface hover:text-primary focus:bg-surface focus:text-primary"
+                  @click="toggleTheme"
+                >
+                  <div class="flex items-center gap-3">
+                    <Sun v-if="theme === 'dark'" class="h-[18px] w-[18px]" :stroke-width="2" />
+
+                    <Moon v-else class="h-[18px] w-[18px]" :stroke-width="2" />
+
+                    <span>
+                      {{ theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode' }}
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+
+                <!-- Mobile Announcements -->
+                <DropdownMenuItem
+                  class="cursor-pointer px-5 py-3 text-sm font-medium text-secondary-text transition-colors duration-200 hover:bg-surface hover:text-primary focus:bg-surface focus:text-primary"
+                  @click="emit('announcements')"
+                >
+                  <div class="flex items-center gap-3">
+                    <Megaphone class="h-[18px] w-[18px]" :stroke-width="2" />
+
+                    <span>Announcements</span>
+                  </div>
+                </DropdownMenuItem>
+              </div>
+            </div>
+
+            <!-- Account Links -->
             <DropdownMenuSeparator class="bg-border" />
 
             <div class="py-2">
@@ -538,7 +635,7 @@ onMounted(() => {
     <!-- Page Content -->
     <section
       class="min-h-screen pt-[76px] transition-all duration-300"
-      :class="isSidebarOpen ? 'ml-72' : 'ml-20'"
+      :class="isMobile ? 'ml-0' : isSidebarOpen ? 'ml-72' : 'ml-20'"
     >
       <div class="min-h-[calc(100vh-76px)] bg-background p-5 sm:p-8">
         <div class="mx-auto max-w-[1600px]">

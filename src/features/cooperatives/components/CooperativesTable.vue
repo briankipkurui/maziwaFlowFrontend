@@ -196,13 +196,6 @@ const getInitials = (groupName: string) => {
                 {{ cooperative.groupName }}
               </p>
 
-              <p class="mt-0.5 text-xs font-medium text-muted-text">
-                {{ cooperative.mobilePhone }}
-              </p>
-
-              <p class="mt-1 text-xs text-secondary-text">
-                {{ cooperative.notes || 'No additional notes' }}
-              </p>
             </div>
           </div>
         </TableCell>

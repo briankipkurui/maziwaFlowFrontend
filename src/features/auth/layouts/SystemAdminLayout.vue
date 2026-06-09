@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useRouter } from 'vue-router';
+
 import AdminLayout from '@/layouts/admin/AdminLayout.vue';
 
 import {
@@ -10,6 +14,12 @@ import {
   Users,
   UsersRound,
 } from 'lucide-vue-next';
+import { useAuthFeatureStore } from '../stores/authStore';
+
+const router = useRouter();
+
+const authStore = useAuthFeatureStore();
+const { user } = storeToRefs(authStore);
 
 const sidebarItems = [
   {
@@ -134,9 +144,68 @@ const userMenuItems = [
   },
 ];
 
-const logout = () => {
+/**
+ * Safely reads a text field from the logged-in user.
+ * This prevents TypeScript errors if your API returns optional values.
+ */
+const getUserField = (field: string): string => {
+  const currentUser = user.value as Record<string, unknown> | null;
+
+  const value = currentUser?.[field];
+
+  return typeof value === 'string' ? value.trim() : '';
+};
+
+const loggedInUserEmail = computed(() => {
+  return getUserField('email') || 'user@email.com';
+});
+
+const loggedInUserName = computed(() => {
+  const firstName = getUserField('firstName');
+  const middleName = getUserField('middleName');
+  const lastName = getUserField('lastName');
+
+  const composedName = [firstName, middleName, lastName].filter(Boolean).join(' ');
+
+  return (
+    composedName || getUserField('fullName') || getUserField('name') || loggedInUserEmail.value
+  );
+});
+
+const loggedInUserInitials = computed(() => {
+  const firstName = getUserField('firstName');
+  const lastName = getUserField('lastName');
+
+  if (firstName || lastName) {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase().slice(0, 2);
+  }
+
+  const nameParts = loggedInUserName.value
+    .split(' ')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const firstPart = nameParts[0] ?? '';
+  const lastPart = nameParts[nameParts.length - 1] ?? '';
+
+  if (nameParts.length >= 2) {
+    return `${firstPart.charAt(0)}${lastPart.charAt(0)}`.toUpperCase().slice(0, 2);
+  }
+
+  if (nameParts.length === 1) {
+    return firstPart.slice(0, 2).toUpperCase();
+  }
+
+  return 'US';
+});
+
+const logout = async () => {
+  authStore.clearAuth();
+
   localStorage.removeItem('accessToken');
-  window.location.href = '/login';
+  localStorage.removeItem('refreshToken');
+
+  await router.replace('/login');
 };
 </script>
 
@@ -144,8 +213,9 @@ const logout = () => {
   <AdminLayout
     title="System Admin"
     subtitle="Platform Management"
-    user-email="admin@email.com"
-    user-initials="BM"
+    :user-name="loggedInUserName"
+    :user-email="loggedInUserEmail"
+    :user-initials="loggedInUserInitials"
     :sidebar-items="sidebarItems"
     :user-menu-items="userMenuItems"
     @logout="logout"
