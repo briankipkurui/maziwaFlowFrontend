@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Component } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 import {
   Bell,
@@ -16,14 +16,8 @@ import {
   Sun,
 } from 'lucide-vue-next';
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import Menu from 'primevue/menu';
+import type { MenuItem } from 'primevue/menuitem';
 
 type ChildSidebarItem = {
   label: string;
@@ -44,9 +38,13 @@ type UserMenuItem = {
   danger?: boolean;
 };
 
+type PopupMenuItem = MenuItem & {
+  danger?: boolean;
+};
+
 type Theme = 'dark' | 'light';
 
-defineProps<{
+const props = defineProps<{
   title: string;
   subtitle: string;
   sidebarItems: SidebarItem[];
@@ -63,6 +61,7 @@ const emit = defineEmits<{
 }>();
 
 const route = useRoute();
+const router = useRouter();
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -71,14 +70,20 @@ const isMobile = ref(false);
 const openMenus = ref<string[]>([]);
 const theme = ref<Theme>('dark');
 
+const userPopupMenu = ref<InstanceType<typeof Menu> | null>(null);
+
 const applyTheme = (selectedTheme: Theme) => {
-  document.documentElement.classList.toggle('light', selectedTheme === 'light');
+  document.documentElement.classList.toggle(
+    'light',
+    selectedTheme === 'light',
+  );
 
   localStorage.setItem('theme', selectedTheme);
 };
 
 const toggleTheme = () => {
   theme.value = theme.value === 'dark' ? 'light' : 'dark';
+
   applyTheme(theme.value);
 };
 
@@ -109,6 +114,7 @@ const syncSidebarWithViewport = () => {
 const toggleChildMenu = (label: string) => {
   if (openMenus.value.includes(label)) {
     openMenus.value = openMenus.value.filter((item) => item !== label);
+
     return;
   }
 
@@ -128,15 +134,61 @@ const isMenuOpen = (item: SidebarItem): boolean => {
 
 const isParentActive = (item: SidebarItem): boolean => {
   return (
-    route.path === item.path || item.children?.some((child) => isChildActive(child.path)) === true
+    route.path === item.path ||
+    item.children?.some((child) => isChildActive(child.path)) === true
   );
 };
 
-const handleMenuClick = (item: UserMenuItem) => {
-  if (item.danger) {
-    emit('logout');
-  }
+const toggleUserPopupMenu = (event: Event) => {
+  userPopupMenu.value?.toggle(event);
 };
+
+const popupMenuItems = computed<PopupMenuItem[]>(() => {
+  const items: PopupMenuItem[] = [];
+
+  // Mobile-only actions appear inside the profile popup menu.
+  if (isMobile.value) {
+    items.push(
+      {
+        label:
+          theme.value === 'dark'
+            ? 'Switch to Light Mode'
+            : 'Switch to Dark Mode',
+        icon: theme.value === 'dark' ? 'pi pi-sun' : 'pi pi-moon',
+        command: toggleTheme,
+      },
+      {
+        label: 'Announcements',
+        icon: 'pi pi-megaphone',
+        command: () => emit('announcements'),
+      },
+      {
+        separator: true,
+      },
+    );
+  }
+
+  items.push(
+    ...props.userMenuItems.map((item) => ({
+      label: item.label,
+      icon: item.danger ? 'pi pi-sign-out' : 'pi pi-user',
+      danger: item.danger,
+      command: () => {
+        if (item.danger) {
+          emit('logout');
+
+          return;
+        }
+
+        if (item.path) {
+          router.push(item.path);
+        }
+      },
+    })),
+  );
+
+  return items;
+});
 
 watch(
   () => route.fullPath,
@@ -147,6 +199,7 @@ watch(
 
 onMounted(() => {
   syncSidebarWithViewport();
+
   window.addEventListener('resize', syncSidebarWithViewport);
 
   const savedTheme = localStorage.getItem('theme');
@@ -154,7 +207,9 @@ onMounted(() => {
   if (savedTheme === 'dark' || savedTheme === 'light') {
     theme.value = savedTheme;
   } else {
-    theme.value = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    theme.value = window.matchMedia('(prefers-color-scheme: light)').matches
+      ? 'light'
+      : 'dark';
   }
 
   applyTheme(theme.value);
@@ -167,7 +222,10 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="min-h-screen bg-background text-foreground">
-    <!-- Sidebar -->
+    <!-- ======================================================= -->
+    <!-- SIDEBAR -->
+    <!-- ======================================================= -->
+
     <aside
       class="fixed left-0 top-0 z-50 h-screen border-r border-surface bg-secondary transition-all duration-300"
       :class="[
@@ -178,6 +236,7 @@ onBeforeUnmount(() => {
           : isSidebarOpen
             ? 'w-72 translate-x-0'
             : 'w-20 translate-x-0',
+
         theme === 'light' ? 'shadow-none' : 'shadow-xl',
       ]"
     >
@@ -188,7 +247,10 @@ onBeforeUnmount(() => {
           :class="isSidebarOpen ? 'justify-start' : 'justify-center'"
         >
           <div class="flex items-center gap-3">
-            <div class="grid h-11 w-11 shrink-0 grid-cols-3 gap-[3px] rounded-lg p-2">
+            <!-- Logo -->
+            <div
+              class="grid h-11 w-11 shrink-0 grid-cols-3 gap-[3px] rounded-lg p-2"
+            >
               <span
                 v-for="i in 9"
                 :key="i"
@@ -197,8 +259,11 @@ onBeforeUnmount(() => {
               />
             </div>
 
+            <!-- Application Name -->
             <div v-if="isSidebarOpen" class="min-w-0 leading-tight">
-              <h1 class="truncate text-[22px] font-extrabold tracking-tight text-heading">
+              <h1
+                class="truncate text-[22px] font-extrabold tracking-tight text-heading"
+              >
                 Maziwa<span class="text-primary">Flow</span>
               </h1>
 
@@ -215,7 +280,9 @@ onBeforeUnmount(() => {
         <div v-if="isSidebarOpen" class="px-5 pb-2 pt-6">
           <p
             class="text-[10px] font-bold uppercase tracking-[0.22em]"
-            :class="theme === 'light' ? 'text-[#343434]' : 'text-subtle-text'"
+            :class="
+              theme === 'light' ? 'text-[#343434]' : 'text-subtle-text'
+            "
           >
             {{ title }}
           </p>
@@ -225,7 +292,7 @@ onBeforeUnmount(() => {
         <nav class="flex-1 overflow-y-auto px-3 py-3">
           <div class="space-y-1">
             <div v-for="item in sidebarItems" :key="item.path">
-              <!-- Parent Menu with Children -->
+              <!-- Parent Menu With Children -->
               <button
                 v-if="item.children?.length"
                 type="button"
@@ -233,6 +300,7 @@ onBeforeUnmount(() => {
                 class="group relative flex w-full items-center rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all duration-200"
                 :class="[
                   isSidebarOpen ? 'justify-between' : 'justify-center',
+
                   isParentActive(item)
                     ? theme === 'light'
                       ? 'border-primary bg-primary text-primary-foreground shadow-none'
@@ -243,6 +311,7 @@ onBeforeUnmount(() => {
                 ]"
                 @click="toggleChildMenu(item.label)"
               >
+                <!-- Active Menu Indicator -->
                 <span
                   v-if="isParentActive(item)"
                   class="absolute -left-3 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-heading"
@@ -261,7 +330,11 @@ onBeforeUnmount(() => {
                           : 'bg-surface text-muted-text group-hover:text-primary',
                     ]"
                   >
-                    <component :is="item.icon" class="h-[18px] w-[18px]" :stroke-width="2" />
+                    <component
+                      :is="item.icon"
+                      class="h-[18px] w-[18px]"
+                      :stroke-width="2"
+                    />
                   </span>
 
                   <span v-if="isSidebarOpen" class="truncate">
@@ -273,13 +346,21 @@ onBeforeUnmount(() => {
                   v-if="isSidebarOpen"
                   class="ml-2 flex h-5 w-5 shrink-0 items-center justify-center"
                 >
-                  <ChevronUp v-if="isMenuOpen(item)" class="h-4 w-4" :stroke-width="2.5" />
+                  <ChevronUp
+                    v-if="isMenuOpen(item)"
+                    class="h-4 w-4"
+                    :stroke-width="2.5"
+                  />
 
-                  <ChevronDown v-else class="h-4 w-4" :stroke-width="2.5" />
+                  <ChevronDown
+                    v-else
+                    class="h-4 w-4"
+                    :stroke-width="2.5"
+                  />
                 </span>
               </button>
 
-              <!-- Parent Menu without Children -->
+              <!-- Parent Menu Without Children -->
               <RouterLink
                 v-else
                 :to="item.path"
@@ -287,6 +368,7 @@ onBeforeUnmount(() => {
                 class="group relative flex items-center rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all duration-200"
                 :class="[
                   isSidebarOpen ? 'justify-between' : 'justify-center',
+
                   isParentActive(item)
                     ? theme === 'light'
                       ? 'border-primary bg-primary text-primary-foreground shadow-none'
@@ -297,6 +379,7 @@ onBeforeUnmount(() => {
                 ]"
                 @click="closeMobileSidebar"
               >
+                <!-- Active Menu Indicator -->
                 <span
                   v-if="isParentActive(item)"
                   class="absolute -left-3 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-heading"
@@ -315,7 +398,11 @@ onBeforeUnmount(() => {
                           : 'bg-surface text-muted-text group-hover:text-primary',
                     ]"
                   >
-                    <component :is="item.icon" class="h-[18px] w-[18px]" :stroke-width="2" />
+                    <component
+                      :is="item.icon"
+                      class="h-[18px] w-[18px]"
+                      :stroke-width="2"
+                    />
                   </span>
 
                   <span v-if="isSidebarOpen" class="truncate">
@@ -333,7 +420,11 @@ onBeforeUnmount(() => {
 
               <!-- Child Menu Items -->
               <div
-                v-if="item.children?.length && isSidebarOpen && isMenuOpen(item)"
+                v-if="
+                  item.children?.length &&
+                  isSidebarOpen &&
+                  isMenuOpen(item)
+                "
                 class="ml-6 mt-2 space-y-1 border-l border-surface pl-4"
               >
                 <RouterLink
@@ -372,6 +463,7 @@ onBeforeUnmount(() => {
             class="flex w-full items-center rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all duration-200 hover:border-error hover:text-error"
             :class="[
               isSidebarOpen ? 'justify-start gap-3' : 'justify-center',
+
               theme === 'light'
                 ? 'border-transparent bg-transparent text-[#343434] shadow-none hover:bg-transparent'
                 : 'border-secondary text-muted-text hover:bg-surface',
@@ -380,7 +472,11 @@ onBeforeUnmount(() => {
           >
             <span
               class="flex h-8 w-8 items-center justify-center rounded-md"
-              :class="theme === 'light' ? 'bg-transparent shadow-none' : 'bg-surface'"
+              :class="
+                theme === 'light'
+                  ? 'bg-transparent shadow-none'
+                  : 'bg-surface'
+              "
             >
               <LogOut class="h-[18px] w-[18px]" :stroke-width="2" />
             </span>
@@ -400,11 +496,19 @@ onBeforeUnmount(() => {
       @click="closeMobileSidebar"
     />
 
-    <!-- Header -->
+    <!-- ======================================================= -->
+    <!-- HEADER -->
+    <!-- ======================================================= -->
+
     <header
       class="fixed right-0 top-0 z-30 flex h-[76px] items-center justify-between border-b border-surface bg-secondary transition-all duration-300"
       :class="[
-        isMobile ? 'left-0 px-3' : isSidebarOpen ? 'left-72 px-6' : 'left-20 px-6',
+        isMobile
+          ? 'left-0 px-3'
+          : isSidebarOpen
+            ? 'left-72 px-6'
+            : 'left-20 px-6',
+
         theme === 'light' ? 'shadow-none' : 'shadow-lg',
       ]"
     >
@@ -416,14 +520,26 @@ onBeforeUnmount(() => {
           class="flex h-10 w-10 items-center justify-center rounded-lg border border-transparent bg-transparent text-secondary-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
           @click="toggleSidebar"
         >
-          <PanelLeftClose v-if="isSidebarOpen" class="h-5 w-5" :stroke-width="2" />
+          <PanelLeftClose
+            v-if="isSidebarOpen"
+            class="h-5 w-5"
+            :stroke-width="2"
+          />
 
-          <PanelLeftOpen v-else class="h-5 w-5" :stroke-width="2" />
+          <PanelLeftOpen
+            v-else
+            class="h-5 w-5"
+            :stroke-width="2"
+          />
         </button>
 
-        <!-- Workspace Name: Hidden on small screens -->
+        <!-- Workspace Name -->
         <div class="hidden sm:block">
-          <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-subtle-text">Workspace</p>
+          <p
+            class="text-[10px] font-bold uppercase tracking-[0.2em] text-subtle-text"
+          >
+            Workspace
+          </p>
 
           <p class="mt-1 text-sm font-semibold text-heading">
             {{ title }}
@@ -432,10 +548,14 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="flex items-center gap-1 sm:gap-2 lg:gap-3">
-        <!-- Theme Toggle: Desktop only -->
+        <!-- Desktop Theme Toggle -->
         <button
           type="button"
-          :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+          :title="
+            theme === 'dark'
+              ? 'Switch to light theme'
+              : 'Switch to dark theme'
+          "
           class="hidden h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring md:flex"
           :class="
             theme === 'light'
@@ -444,12 +564,20 @@ onBeforeUnmount(() => {
           "
           @click="toggleTheme"
         >
-          <Sun v-if="theme === 'dark'" class="h-5 w-5" :stroke-width="2" />
+          <Sun
+            v-if="theme === 'dark'"
+            class="h-5 w-5"
+            :stroke-width="2"
+          />
 
-          <Moon v-else class="h-5 w-5" :stroke-width="2" />
+          <Moon
+            v-else
+            class="h-5 w-5"
+            :stroke-width="2"
+          />
         </button>
 
-        <!-- Announcements: Desktop only -->
+        <!-- Desktop Announcements -->
         <button
           type="button"
           title="Announcements"
@@ -464,7 +592,7 @@ onBeforeUnmount(() => {
           <Megaphone class="h-5 w-5" :stroke-width="2" />
         </button>
 
-        <!-- Help: Desktop only -->
+        <!-- Desktop Help -->
         <button
           type="button"
           title="Help"
@@ -500,142 +628,115 @@ onBeforeUnmount(() => {
 
         <div class="mx-1 hidden h-8 w-px bg-surface sm:block" />
 
-        <!-- User Dropdown -->
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <button
-              type="button"
-              class="flex items-center gap-2 rounded-lg border p-1 transition-all duration-200 hover:border-primary focus:outline-none focus:ring-2 focus:ring-ring sm:p-1.5 sm:pr-2"
-              :class="
-                theme === 'light'
-                  ? 'border-transparent bg-transparent shadow-none'
-                  : 'border-surface bg-surface shadow-sm'
-              "
+        <!-- =================================================== -->
+        <!-- PRIMEVUE USER POPUP MENU -->
+        <!-- =================================================== -->
+
+        <div>
+          <!-- Popup Menu Trigger -->
+          <button
+            type="button"
+            aria-haspopup="true"
+            aria-controls="user-popup-menu"
+            class="flex items-center gap-2 rounded-lg border p-1 transition-all duration-200 hover:border-primary focus:outline-none focus:ring-2 focus:ring-ring sm:p-1.5 sm:pr-2"
+            :class="
+              theme === 'light'
+                ? 'border-transparent bg-transparent shadow-none'
+                : 'border-surface bg-surface shadow-sm'
+            "
+            @click="toggleUserPopupMenu"
+          >
+            <span
+              class="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground sm:h-9 sm:w-9 sm:text-sm"
             >
-              <span
-                class="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground sm:h-9 sm:w-9 sm:text-sm"
-              >
-                {{ userInitials || 'BM' }}
-              </span>
+              {{ userInitials || 'BM' }}
+            </span>
 
-              <span
-                v-if="userName"
-                class="hidden max-w-32 truncate text-sm font-semibold text-heading lg:block"
-              >
-                {{ userName }}
-              </span>
+            <span
+              v-if="userName"
+              class="hidden max-w-32 truncate text-sm font-semibold text-heading lg:block"
+            >
+              {{ userName }}
+            </span>
 
-              <ChevronDown
-                class="hidden h-4 w-4 shrink-0 text-muted-text lg:block"
-                :stroke-width="2.5"
-              />
-            </button>
-          </DropdownMenuTrigger>
+            <ChevronDown
+              class="hidden h-4 w-4 shrink-0 text-muted-text lg:block"
+              :stroke-width="2.5"
+            />
+          </button>
 
-          <DropdownMenuContent
-            align="end"
-            side="bottom"
-            :side-offset="12"
-            class="z-[9999] w-72 overflow-hidden rounded-lg border border-border bg-card p-0 text-card-foreground"
+          <!-- PrimeVue Popup -->
+          <Menu
+            id="user-popup-menu"
+            ref="userPopupMenu"
+            :model="popupMenuItems"
+            popup
+            class="z-[9999] mt-2 w-72 overflow-hidden rounded-lg border border-border bg-card p-0 text-card-foreground"
             :class="theme === 'light' ? 'shadow-none' : 'shadow-xl'"
           >
             <!-- User Details -->
-            <DropdownMenuLabel class="px-5 py-4 font-normal">
-              <div class="flex items-center gap-3">
-                <span
-                  class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground"
-                >
-                  {{ userInitials || 'BM' }}
-                </span>
+            <template #start>
+              <div class="border-b border-border px-5 py-4">
+                <div class="flex items-center gap-3">
+                  <span
+                    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground"
+                  >
+                    {{ userInitials || 'BM' }}
+                  </span>
 
-                <div class="min-w-0">
-                  <p v-if="userName" class="truncate text-sm font-semibold text-heading">
-                    {{ userName }}
-                  </p>
+                  <div class="min-w-0">
+                    <p
+                      v-if="userName"
+                      class="truncate text-sm font-semibold text-heading"
+                    >
+                      {{ userName }}
+                    </p>
 
-                  <p class="mt-1 truncate text-xs text-muted-text">
-                    {{ userEmail || 'user@email.com' }}
-                  </p>
+                    <p class="mt-1 truncate text-xs text-muted-text">
+                      {{ userEmail || 'user@email.com' }}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </DropdownMenuLabel>
+            </template>
 
-            <!-- Mobile Quick Actions -->
-            <div class="md:hidden">
-              <DropdownMenuSeparator class="bg-border" />
+            <!-- Menu Items -->
+            <template #item="{ item, props: menuItemProps }">
+              <a
+                v-ripple
+                v-bind="menuItemProps.action"
+                class="flex cursor-pointer items-center gap-3 px-5 py-3 text-sm font-medium transition-colors duration-200 hover:bg-surface hover:text-primary"
+                :class="
+                  item.danger
+                    ? 'text-error hover:text-error'
+                    : 'text-secondary-text'
+                "
+              >
+                <span :class="item.icon" class="text-[16px]" />
 
-              <div class="py-2">
-                <!-- Mobile Theme Toggle -->
-                <DropdownMenuItem
-                  class="cursor-pointer px-5 py-3 text-sm font-medium text-secondary-text transition-colors duration-200 hover:bg-surface hover:text-primary focus:bg-surface focus:text-primary"
-                  @click="toggleTheme"
-                >
-                  <div class="flex items-center gap-3">
-                    <Sun v-if="theme === 'dark'" class="h-[18px] w-[18px]" :stroke-width="2" />
-
-                    <Moon v-else class="h-[18px] w-[18px]" :stroke-width="2" />
-
-                    <span>
-                      {{ theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode' }}
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-
-                <!-- Mobile Announcements -->
-                <DropdownMenuItem
-                  class="cursor-pointer px-5 py-3 text-sm font-medium text-secondary-text transition-colors duration-200 hover:bg-surface hover:text-primary focus:bg-surface focus:text-primary"
-                  @click="emit('announcements')"
-                >
-                  <div class="flex items-center gap-3">
-                    <Megaphone class="h-[18px] w-[18px]" :stroke-width="2" />
-
-                    <span>Announcements</span>
-                  </div>
-                </DropdownMenuItem>
-              </div>
-            </div>
-
-            <!-- Account Links -->
-            <DropdownMenuSeparator class="bg-border" />
-
-            <div class="py-2">
-              <template v-for="item in userMenuItems" :key="item.label">
-                <DropdownMenuItem
-                  v-if="item.path"
-                  as-child
-                  class="cursor-pointer p-0 focus:bg-surface"
-                >
-                  <RouterLink
-                    :to="item.path"
-                    class="block w-full px-5 py-3 text-sm font-medium text-secondary-text transition-colors duration-200 hover:bg-surface hover:text-primary"
-                  >
-                    {{ item.label }}
-                  </RouterLink>
-                </DropdownMenuItem>
-
-                <DropdownMenuItem
-                  v-else
-                  class="cursor-pointer px-5 py-3 text-sm font-medium transition-colors duration-200"
-                  :class="
-                    item.danger
-                      ? 'text-error hover:bg-surface focus:bg-surface focus:text-error'
-                      : 'text-secondary-text hover:bg-surface hover:text-primary focus:bg-surface focus:text-primary'
-                  "
-                  @click="handleMenuClick(item)"
-                >
+                <span>
                   {{ item.label }}
-                </DropdownMenuItem>
-              </template>
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                </span>
+              </a>
+            </template>
+          </Menu>
+        </div>
       </div>
     </header>
 
-    <!-- Page Content -->
+    <!-- ======================================================= -->
+    <!-- PAGE CONTENT -->
+    <!-- ======================================================= -->
+
     <section
       class="min-h-screen pt-[76px] transition-all duration-300"
-      :class="isMobile ? 'ml-0' : isSidebarOpen ? 'ml-72' : 'ml-20'"
+      :class="
+        isMobile
+          ? 'ml-0'
+          : isSidebarOpen
+            ? 'ml-72'
+            : 'ml-20'
+      "
     >
       <div class="min-h-[calc(100vh-76px)] bg-background p-5 sm:p-8">
         <div class="mx-auto max-w-[1600px]">
