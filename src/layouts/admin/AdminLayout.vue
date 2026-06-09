@@ -6,22 +6,34 @@ import { useRoute, useRouter } from 'vue-router';
 import {
   Bell,
   ChevronDown,
-  ChevronUp,
   CircleHelp,
-  LogOut,
   Megaphone,
   Moon,
-  PanelLeftClose,
-  PanelLeftOpen,
   Sun,
 } from 'lucide-vue-next';
 
+import Avatar from 'primevue/avatar';
+import Badge from 'primevue/badge';
+import Button from 'primevue/button';
+import Divider from 'primevue/divider';
+import Drawer from 'primevue/drawer';
 import Menu from 'primevue/menu';
+import OverlayBadge from 'primevue/overlaybadge';
+import PanelMenu from 'primevue/panelmenu';
+import ScrollPanel from 'primevue/scrollpanel';
+
 import type { MenuItem } from 'primevue/menuitem';
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type ChildSidebarItem = {
   label: string;
   path: string;
+  icon?: Component;
+  badge?: string;
+  children?: ChildSidebarItem[];
 };
 
 type SidebarItem = {
@@ -38,11 +50,24 @@ type UserMenuItem = {
   danger?: boolean;
 };
 
-type PopupMenuItem = MenuItem & {
+type PrimeSidebarItem = MenuItem & {
+  key: string;
+  route?: string;
+  iconComponent?: Component;
+  badge?: string;
+  level: number;
+  items?: PrimeSidebarItem[];
+};
+
+type PrimeProfileItem = MenuItem & {
   danger?: boolean;
 };
 
 type Theme = 'dark' | 'light';
+
+/* ============================================================
+   PROPS AND EVENTS
+============================================================ */
 
 const props = defineProps<{
   title: string;
@@ -60,23 +85,29 @@ const emit = defineEmits<{
   announcements: [];
 }>();
 
+/* ============================================================
+   STATE
+============================================================ */
+
 const route = useRoute();
 const router = useRouter();
 
 const MOBILE_BREAKPOINT = 768;
 
-const isSidebarOpen = ref(true);
 const isMobile = ref(false);
-const openMenus = ref<string[]>([]);
+const isDrawerVisible = ref(false);
 const theme = ref<Theme>('dark');
+
+const expandedKeys = ref<Record<string, boolean>>({});
 
 const userPopupMenu = ref<InstanceType<typeof Menu> | null>(null);
 
+/* ============================================================
+   THEME
+============================================================ */
+
 const applyTheme = (selectedTheme: Theme) => {
-  document.documentElement.classList.toggle(
-    'light',
-    selectedTheme === 'light',
-  );
+  document.documentElement.classList.toggle('light', selectedTheme === 'light');
 
   localStorage.setItem('theme', selectedTheme);
 };
@@ -87,73 +118,169 @@ const toggleTheme = () => {
   applyTheme(theme.value);
 };
 
-const toggleSidebar = () => {
-  isSidebarOpen.value = !isSidebarOpen.value;
+/* ============================================================
+   RESPONSIVE DRAWER
+============================================================ */
+
+const syncViewport = () => {
+  isMobile.value = window.innerWidth < MOBILE_BREAKPOINT;
 };
 
-const closeMobileSidebar = () => {
-  if (isMobile.value) {
-    isSidebarOpen.value = false;
-  }
+const openDrawer = () => {
+  isDrawerVisible.value = true;
 };
 
-const syncSidebarWithViewport = () => {
-  const mobileViewport = window.innerWidth < MOBILE_BREAKPOINT;
-
-  if (mobileViewport === isMobile.value) {
-    return;
-  }
-
-  isMobile.value = mobileViewport;
-
-  // Hide the sidebar completely on mobile.
-  // Restore the expanded sidebar when returning to desktop.
-  isSidebarOpen.value = !mobileViewport;
+const closeDrawer = () => {
+  isDrawerVisible.value = false;
 };
 
-const toggleChildMenu = (label: string) => {
-  if (openMenus.value.includes(label)) {
-    openMenus.value = openMenus.value.filter((item) => item !== label);
+/* ============================================================
+   ROUTE HELPERS
+============================================================ */
 
-    return;
+const isRouteActive = (path?: string): boolean => {
+  if (!path) {
+    return false;
   }
 
-  openMenus.value.push(label);
-};
-
-const isChildActive = (path: string): boolean => {
   return route.path === path || route.path.startsWith(`${path}/`);
 };
 
-const isMenuOpen = (item: SidebarItem): boolean => {
-  return (
-    openMenus.value.includes(item.label) ||
-    item.children?.some((child) => isChildActive(child.path)) === true
-  );
+const isSidebarItemActive = (item: MenuItem): boolean => {
+  const sidebarItem = item as PrimeSidebarItem;
+
+  if (isRouteActive(sidebarItem.route)) {
+    return true;
+  }
+
+  return sidebarItem.items?.some((child) => isSidebarItemActive(child)) === true;
 };
 
-const isParentActive = (item: SidebarItem): boolean => {
-  return (
-    route.path === item.path ||
-    item.children?.some((child) => isChildActive(child.path)) === true
-  );
+/* ============================================================
+   PRIMEVUE PANEL MENU MODEL
+============================================================ */
+
+const mapChildSidebarItem = (item: ChildSidebarItem, level: number): PrimeSidebarItem => {
+  const hasChildren = Boolean(item.children?.length);
+
+  return {
+    key: item.path,
+    label: item.label,
+    route: hasChildren ? undefined : item.path,
+    iconComponent: item.icon,
+    badge: item.badge,
+    level,
+
+    command: hasChildren
+      ? undefined
+      : () => {
+          void router.push(item.path).then(() => {
+            closeDrawer();
+          });
+        },
+
+    items: item.children?.map((child) => mapChildSidebarItem(child, level + 1)),
+  };
 };
+
+const sidebarMenuItems = computed<PrimeSidebarItem[]>(() => {
+  return props.sidebarItems.map((item) => {
+    const hasChildren = Boolean(item.children?.length);
+
+    return {
+      key: item.path,
+      label: item.label,
+      route: hasChildren ? undefined : item.path,
+      iconComponent: item.icon,
+      badge: item.badge,
+      level: 0,
+
+      command: hasChildren
+        ? undefined
+        : () => {
+            void router.push(item.path).then(() => {
+              closeDrawer();
+            });
+          },
+
+      items: item.children?.map((child) => mapChildSidebarItem(child, 1)),
+    };
+  });
+});
+
+const getSidebarIcon = (item: MenuItem): Component | undefined => {
+  return (item as PrimeSidebarItem).iconComponent;
+};
+
+const getSidebarBadge = (item: MenuItem): string | undefined => {
+  return (item as PrimeSidebarItem).badge;
+};
+
+const getSidebarLevel = (item: MenuItem): number => {
+  return (item as PrimeSidebarItem).level ?? 0;
+};
+
+const collectActiveParentKeys = (
+  items: PrimeSidebarItem[],
+  collectedKeys: Record<string, boolean>,
+): boolean => {
+  let containsActiveRoute = false;
+
+  for (const item of items) {
+    const itemIsActive = isRouteActive(item.route);
+
+    const childIsActive = item.items?.length
+      ? collectActiveParentKeys(item.items, collectedKeys)
+      : false;
+
+    if (childIsActive) {
+      collectedKeys[item.key] = true;
+    }
+
+    if (itemIsActive || childIsActive) {
+      containsActiveRoute = true;
+    }
+  }
+
+  return containsActiveRoute;
+};
+
+const expandActiveMenus = () => {
+  const activeKeys: Record<string, boolean> = {};
+
+  collectActiveParentKeys(sidebarMenuItems.value, activeKeys);
+
+  expandedKeys.value = {
+    ...expandedKeys.value,
+    ...activeKeys,
+  };
+};
+
+watch(
+  [sidebarMenuItems, () => route.path],
+  () => {
+    expandActiveMenus();
+  },
+  {
+    immediate: true,
+  },
+);
+
+/* ============================================================
+   PRIMEVUE PROFILE MENU
+============================================================ */
 
 const toggleUserPopupMenu = (event: Event) => {
   userPopupMenu.value?.toggle(event);
 };
 
-const popupMenuItems = computed<PopupMenuItem[]>(() => {
-  const items: PopupMenuItem[] = [];
+const profileMenuItems = computed<PrimeProfileItem[]>(() => {
+  const items: PrimeProfileItem[] = [];
 
-  // Mobile-only actions appear inside the profile popup menu.
   if (isMobile.value) {
     items.push(
       {
-        label:
-          theme.value === 'dark'
-            ? 'Switch to Light Mode'
-            : 'Switch to Dark Mode',
+        label: theme.value === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode',
         icon: theme.value === 'dark' ? 'pi pi-sun' : 'pi pi-moon',
         command: toggleTheme,
       },
@@ -173,6 +300,7 @@ const popupMenuItems = computed<PopupMenuItem[]>(() => {
       label: item.label,
       icon: item.danger ? 'pi pi-sign-out' : 'pi pi-user',
       danger: item.danger,
+
       command: () => {
         if (item.danger) {
           emit('logout');
@@ -181,7 +309,7 @@ const popupMenuItems = computed<PopupMenuItem[]>(() => {
         }
 
         if (item.path) {
-          router.push(item.path);
+          void router.push(item.path);
         }
       },
     })),
@@ -190,356 +318,230 @@ const popupMenuItems = computed<PopupMenuItem[]>(() => {
   return items;
 });
 
-watch(
-  () => route.fullPath,
-  () => {
-    closeMobileSidebar();
-  },
-);
+/* ============================================================
+   INITIALIZATION
+============================================================ */
 
 onMounted(() => {
-  syncSidebarWithViewport();
+  syncViewport();
 
-  window.addEventListener('resize', syncSidebarWithViewport);
+  window.addEventListener('resize', syncViewport);
 
   const savedTheme = localStorage.getItem('theme');
 
   if (savedTheme === 'dark' || savedTheme === 'light') {
     theme.value = savedTheme;
   } else {
-    theme.value = window.matchMedia('(prefers-color-scheme: light)').matches
-      ? 'light'
-      : 'dark';
+    theme.value = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   }
 
   applyTheme(theme.value);
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', syncSidebarWithViewport);
+  window.removeEventListener('resize', syncViewport);
 });
 </script>
 
 <template>
   <main class="min-h-screen bg-background text-foreground">
     <!-- ======================================================= -->
-    <!-- SIDEBAR -->
+    <!-- PRIMEVUE DRAWER -->
     <!-- ======================================================= -->
 
-    <aside
-      class="fixed left-0 top-0 z-50 h-screen border-r border-surface bg-secondary transition-all duration-300"
-      :class="[
-        isMobile
-          ? isSidebarOpen
-            ? 'w-72 translate-x-0'
-            : 'w-72 -translate-x-full'
-          : isSidebarOpen
-            ? 'w-72 translate-x-0'
-            : 'w-20 translate-x-0',
-
-        theme === 'light' ? 'shadow-none' : 'shadow-xl',
-      ]"
+    <Drawer
+      id="admin-sidebar"
+      v-model:visible="isDrawerVisible"
+      position="left"
+      :show-close-icon="false"
+      class="!w-full sm:!w-[360px]"
     >
-      <div class="flex h-full flex-col">
-        <!-- Brand -->
-        <div
-          class="flex h-[76px] items-center border-b border-surface px-4"
-          :class="isSidebarOpen ? 'justify-start' : 'justify-center'"
-        >
-          <div class="flex items-center gap-3">
-            <!-- Logo -->
-            <div
-              class="grid h-11 w-11 shrink-0 grid-cols-3 gap-[3px] rounded-lg p-2"
-            >
-              <span
-                v-for="i in 9"
-                :key="i"
-                class="rounded-[2px]"
-                :class="i === 5 || i === 7 ? 'bg-heading' : 'bg-primary'"
-              />
-            </div>
+      <template #container="{ closeCallback }">
+        <div class="flex h-full flex-col bg-secondary text-secondary-text">
+          <!-- ================================================= -->
+          <!-- BRAND -->
+          <!-- ================================================= -->
 
-            <!-- Application Name -->
-            <div v-if="isSidebarOpen" class="min-w-0 leading-tight">
-              <h1
-                class="truncate text-[22px] font-extrabold tracking-tight text-heading"
-              >
-                Maziwa<span class="text-primary">Flow</span>
-              </h1>
-
-              <p
-                class="mt-1 truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-text"
-              >
-                {{ subtitle }}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Sidebar Heading -->
-        <div v-if="isSidebarOpen" class="px-5 pb-2 pt-6">
-          <p
-            class="text-[10px] font-bold uppercase tracking-[0.22em]"
-            :class="
-              theme === 'light' ? 'text-[#343434]' : 'text-subtle-text'
-            "
-          >
-            {{ title }}
-          </p>
-        </div>
-
-        <!-- Navigation -->
-        <nav class="flex-1 overflow-y-auto px-3 py-3">
-          <div class="space-y-1">
-            <div v-for="item in sidebarItems" :key="item.path">
-              <!-- Parent Menu With Children -->
-              <button
-                v-if="item.children?.length"
-                type="button"
-                :title="!isSidebarOpen ? item.label : undefined"
-                class="group relative flex w-full items-center rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all duration-200"
-                :class="[
-                  isSidebarOpen ? 'justify-between' : 'justify-center',
-
-                  isParentActive(item)
-                    ? theme === 'light'
-                      ? 'border-primary bg-primary text-primary-foreground shadow-none'
-                      : 'border-primary bg-primary text-primary-foreground shadow-md'
-                    : theme === 'light'
-                      ? 'border-transparent text-[#343434] hover:border-transparent hover:bg-transparent hover:text-[#151515]'
-                      : 'border-secondary text-secondary-text hover:border-surface hover:bg-surface hover:text-heading',
-                ]"
-                @click="toggleChildMenu(item.label)"
-              >
-                <!-- Active Menu Indicator -->
+          <div class="flex h-[78px] shrink-0 items-center justify-between px-5">
+            <div class="flex min-w-0 items-center gap-3">
+              <!-- Logo -->
+              <div class="grid h-11 w-11 shrink-0 grid-cols-3 gap-[3px] rounded-xl bg-surface p-2">
                 <span
-                  v-if="isParentActive(item)"
-                  class="absolute -left-3 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-heading"
+                  v-for="i in 9"
+                  :key="i"
+                  class="rounded-[2px]"
+                  :class="i === 5 || i === 7 ? 'bg-heading' : 'bg-primary'"
                 />
+              </div>
 
-                <div class="flex min-w-0 items-center gap-3">
-                  <span
-                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors"
-                    :class="[
-                      isParentActive(item)
-                        ? theme === 'light'
-                          ? 'bg-transparent text-primary-foreground'
-                          : 'bg-primary-hover text-primary-foreground'
-                        : theme === 'light'
-                          ? 'bg-transparent text-[#343434] group-hover:text-primary'
-                          : 'bg-surface text-muted-text group-hover:text-primary',
-                    ]"
-                  >
-                    <component
-                      :is="item.icon"
-                      class="h-[18px] w-[18px]"
-                      :stroke-width="2"
-                    />
-                  </span>
+              <div class="min-w-0 leading-tight">
+                <h1 class="truncate text-[21px] font-extrabold tracking-tight text-heading">
+                  Maziwa<span class="text-primary">Flow</span>
+                </h1>
 
-                  <span v-if="isSidebarOpen" class="truncate">
-                    {{ item.label }}
-                  </span>
-                </div>
-
-                <span
-                  v-if="isSidebarOpen"
-                  class="ml-2 flex h-5 w-5 shrink-0 items-center justify-center"
+                <p
+                  class="mt-1 truncate text-[10px] font-bold uppercase tracking-[0.2em] text-muted-text"
                 >
-                  <ChevronUp
-                    v-if="isMenuOpen(item)"
-                    class="h-4 w-4"
-                    :stroke-width="2.5"
-                  />
-
-                  <ChevronDown
-                    v-else
-                    class="h-4 w-4"
-                    :stroke-width="2.5"
-                  />
-                </span>
-              </button>
-
-              <!-- Parent Menu Without Children -->
-              <RouterLink
-                v-else
-                :to="item.path"
-                :title="!isSidebarOpen ? item.label : undefined"
-                class="group relative flex items-center rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all duration-200"
-                :class="[
-                  isSidebarOpen ? 'justify-between' : 'justify-center',
-
-                  isParentActive(item)
-                    ? theme === 'light'
-                      ? 'border-primary bg-primary text-primary-foreground shadow-none'
-                      : 'border-primary bg-primary text-primary-foreground shadow-md'
-                    : theme === 'light'
-                      ? 'border-transparent text-[#343434] hover:border-transparent hover:bg-transparent hover:text-[#151515]'
-                      : 'border-secondary text-secondary-text hover:border-surface hover:bg-surface hover:text-heading',
-                ]"
-                @click="closeMobileSidebar"
-              >
-                <!-- Active Menu Indicator -->
-                <span
-                  v-if="isParentActive(item)"
-                  class="absolute -left-3 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-heading"
-                />
-
-                <div class="flex min-w-0 items-center gap-3">
-                  <span
-                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors"
-                    :class="[
-                      isParentActive(item)
-                        ? theme === 'light'
-                          ? 'bg-transparent text-primary-foreground'
-                          : 'bg-primary-hover text-primary-foreground'
-                        : theme === 'light'
-                          ? 'bg-transparent text-[#343434] group-hover:text-primary'
-                          : 'bg-surface text-muted-text group-hover:text-primary',
-                    ]"
-                  >
-                    <component
-                      :is="item.icon"
-                      class="h-[18px] w-[18px]"
-                      :stroke-width="2"
-                    />
-                  </span>
-
-                  <span v-if="isSidebarOpen" class="truncate">
-                    {{ item.label }}
-                  </span>
-                </div>
-
-                <span
-                  v-if="item.badge && isSidebarOpen"
-                  class="ml-2 rounded-md bg-warning px-2 py-0.5 text-[10px] font-bold text-secondary"
-                >
-                  {{ item.badge }}
-                </span>
-              </RouterLink>
-
-              <!-- Child Menu Items -->
-              <div
-                v-if="
-                  item.children?.length &&
-                  isSidebarOpen &&
-                  isMenuOpen(item)
-                "
-                class="ml-6 mt-2 space-y-1 border-l border-surface pl-4"
-              >
-                <RouterLink
-                  v-for="child in item.children"
-                  :key="child.path"
-                  :to="child.path"
-                  class="relative block rounded-md border px-3 py-2 text-[13px] font-medium transition-all duration-200"
-                  :class="
-                    isChildActive(child.path)
-                      ? theme === 'light'
-                        ? 'border-primary bg-transparent text-primary shadow-none'
-                        : 'border-primary bg-surface text-primary'
-                      : theme === 'light'
-                        ? 'border-transparent bg-transparent text-[#343434] hover:border-transparent hover:bg-transparent hover:text-[#151515]'
-                        : 'border-secondary text-muted-text hover:border-surface hover:bg-surface hover:text-heading'
-                  "
-                  @click="closeMobileSidebar"
-                >
-                  <span
-                    v-if="isChildActive(child.path)"
-                    class="absolute -left-[18px] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-primary"
-                  />
-
-                  {{ child.label }}
-                </RouterLink>
+                  {{ subtitle }}
+                </p>
               </div>
             </div>
+
+            <Button
+              icon="pi pi-times"
+              rounded
+              outlined
+              severity="secondary"
+              aria-label="Close sidebar"
+              @click="closeCallback"
+            />
           </div>
-        </nav>
 
-        <!-- Logout -->
-        <div class="border-t border-surface p-3">
-          <button
-            type="button"
-            title="Logout"
-            class="flex w-full items-center rounded-lg border px-3 py-2.5 text-sm font-semibold transition-all duration-200 hover:border-error hover:text-error"
-            :class="[
-              isSidebarOpen ? 'justify-start gap-3' : 'justify-center',
+          <Divider class="!my-0" />
 
-              theme === 'light'
-                ? 'border-transparent bg-transparent text-[#343434] shadow-none hover:bg-transparent'
-                : 'border-secondary text-muted-text hover:bg-surface',
-            ]"
-            @click="emit('logout')"
-          >
-            <span
-              class="flex h-8 w-8 items-center justify-center rounded-md"
-              :class="
-                theme === 'light'
-                  ? 'bg-transparent shadow-none'
-                  : 'bg-surface'
-              "
-            >
-              <LogOut class="h-[18px] w-[18px]" :stroke-width="2" />
-            </span>
+          <!-- ================================================= -->
+          <!-- NAVIGATION -->
+          <!-- ================================================= -->
 
-            <span v-if="isSidebarOpen">Logout</span>
-          </button>
+          <div class="min-h-0 flex-1">
+            <ScrollPanel class="h-full">
+              <div class="px-4 py-6">
+                <p
+                  class="mb-4 px-2 text-[11px] font-extrabold uppercase tracking-[0.28em]"
+                  :class="theme === 'light' ? 'text-[#343434]' : 'text-subtle-text'"
+                >
+                  {{ title }}
+                </p>
+
+                <PanelMenu
+                  v-model:expanded-keys="expandedKeys"
+                  :model="sidebarMenuItems"
+                  multiple
+                  unstyled
+                  class="w-full"
+                >
+                  <template #item="{ item, props: panelMenuProps, hasSubmenu, active }">
+                    <a
+                      v-ripple
+                      v-bind="panelMenuProps.action"
+                      class="group mb-1 flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200"
+                      :class="
+                        isSidebarItemActive(item)
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : theme === 'light'
+                            ? 'text-[#343434] hover:bg-orange-50 hover:text-primary'
+                            : 'text-secondary-text hover:bg-surface hover:text-primary'
+                      "
+                      :style="{
+                        paddingLeft: `${12 + getSidebarLevel(item) * 18}px`,
+                      }"
+                    >
+                      <!-- Menu Icon -->
+                      <span
+                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors duration-200"
+                        :class="
+                          isSidebarItemActive(item)
+                            ? 'bg-white/15 text-primary-foreground'
+                            : theme === 'light'
+                              ? 'bg-[#f4f4f5] text-[#5f6368] group-hover:bg-orange-100 group-hover:text-primary'
+                              : 'bg-surface text-muted-text group-hover:text-primary'
+                        "
+                      >
+                        <component
+                          v-if="getSidebarIcon(item)"
+                          :is="getSidebarIcon(item)"
+                          class="h-[18px] w-[18px]"
+                          :stroke-width="2"
+                        />
+
+                        <i v-else class="pi pi-circle-fill text-[7px]" />
+                      </span>
+
+                      <!-- Label -->
+                      <span class="min-w-0 flex-1 truncate">
+                        {{ item.label }}
+                      </span>
+
+                      <!-- Optional Badge -->
+                      <Badge
+                        v-if="getSidebarBadge(item)"
+                        :value="getSidebarBadge(item)"
+                        severity="contrast"
+                      />
+
+                      <!-- Expand Arrow -->
+                      <i
+                        v-if="hasSubmenu"
+                        class="pi text-xs transition-transform duration-200"
+                        :class="active ? 'pi-chevron-down' : 'pi-chevron-right'"
+                      />
+                    </a>
+                  </template>
+                </PanelMenu>
+              </div>
+            </ScrollPanel>
+          </div>
+
+          <!-- ================================================= -->
+          <!-- DRAWER FOOTER -->
+          <!-- ================================================= -->
+
+          <Divider class="!my-0" />
+
+          <div class="flex shrink-0 items-center gap-3 px-5 py-4">
+            <Avatar
+              :label="userInitials || 'BM'"
+              shape="circle"
+              class="!bg-primary !text-primary-foreground"
+            />
+
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-bold text-heading">
+                {{ userName || 'User Name' }}
+              </p>
+
+              <p class="truncate text-xs text-muted-text">
+                {{ userEmail || 'user@email.com' }}
+              </p>
+            </div>
+
+            <Button
+              icon="pi pi-sign-out"
+              rounded
+              text
+              severity="danger"
+              aria-label="Logout"
+              @click="emit('logout')"
+            />
+          </div>
         </div>
-      </div>
-    </aside>
-
-    <!-- Mobile Sidebar Backdrop -->
-    <button
-      v-if="isMobile && isSidebarOpen"
-      type="button"
-      aria-label="Close sidebar"
-      class="fixed inset-0 z-40 bg-black/50 md:hidden"
-      @click="closeMobileSidebar"
-    />
+      </template>
+    </Drawer>
 
     <!-- ======================================================= -->
     <!-- HEADER -->
     <!-- ======================================================= -->
 
     <header
-      class="fixed right-0 top-0 z-30 flex h-[76px] items-center justify-between border-b border-surface bg-secondary transition-all duration-300"
-      :class="[
-        isMobile
-          ? 'left-0 px-3'
-          : isSidebarOpen
-            ? 'left-72 px-6'
-            : 'left-20 px-6',
-
-        theme === 'light' ? 'shadow-none' : 'shadow-lg',
-      ]"
+      class="fixed left-0 right-0 top-0 z-30 flex h-[76px] items-center justify-between border-b border-surface bg-secondary px-3 transition-all duration-300 sm:px-6"
+      :class="theme === 'light' ? 'shadow-none' : 'shadow-lg'"
     >
       <div class="flex items-center gap-4">
-        <!-- Sidebar Toggle -->
-        <button
-          type="button"
-          title="Toggle sidebar"
-          class="flex h-10 w-10 items-center justify-center rounded-lg border border-transparent bg-transparent text-secondary-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
-          @click="toggleSidebar"
-        >
-          <PanelLeftClose
-            v-if="isSidebarOpen"
-            class="h-5 w-5"
-            :stroke-width="2"
-          />
+        <!-- Open Drawer -->
+        <Button
+          icon="pi pi-bars"
+          text
+          rounded
+          severity="secondary"
+          aria-label="Open sidebar"
+          aria-controls="admin-sidebar"
+          :aria-expanded="isDrawerVisible"
+          @click="openDrawer"
+        />
 
-          <PanelLeftOpen
-            v-else
-            class="h-5 w-5"
-            :stroke-width="2"
-          />
-        </button>
-
-        <!-- Workspace Name -->
+        <!-- Workspace -->
         <div class="hidden sm:block">
-          <p
-            class="text-[10px] font-bold uppercase tracking-[0.2em] text-subtle-text"
-          >
-            Workspace
-          </p>
+          <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-subtle-text">Workspace</p>
 
           <p class="mt-1 text-sm font-semibold text-heading">
             {{ title }}
@@ -548,109 +550,63 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="flex items-center gap-1 sm:gap-2 lg:gap-3">
-        <!-- Desktop Theme Toggle -->
-        <button
-          type="button"
-          :title="
-            theme === 'dark'
-              ? 'Switch to light theme'
-              : 'Switch to dark theme'
-          "
-          class="hidden h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring md:flex"
-          :class="
-            theme === 'light'
-              ? 'border-transparent bg-transparent shadow-none'
-              : 'border-surface bg-surface'
-          "
+        <!-- Theme -->
+        <Button
+          text
+          rounded
+          severity="secondary"
+          class="!hidden md:!inline-flex"
+          :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
           @click="toggleTheme"
         >
-          <Sun
-            v-if="theme === 'dark'"
-            class="h-5 w-5"
-            :stroke-width="2"
-          />
+          <Sun v-if="theme === 'dark'" class="h-5 w-5" :stroke-width="2" />
 
-          <Moon
-            v-else
-            class="h-5 w-5"
-            :stroke-width="2"
-          />
-        </button>
+          <Moon v-else class="h-5 w-5" :stroke-width="2" />
+        </Button>
 
-        <!-- Desktop Announcements -->
-        <button
-          type="button"
-          title="Announcements"
-          class="hidden h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring md:flex"
-          :class="
-            theme === 'light'
-              ? 'border-transparent bg-transparent shadow-none'
-              : 'border-secondary hover:border-surface hover:bg-surface'
-          "
+        <!-- Announcements -->
+        <Button
+          text
+          rounded
+          severity="secondary"
+          class="!hidden md:!inline-flex"
+          aria-label="Announcements"
           @click="emit('announcements')"
         >
           <Megaphone class="h-5 w-5" :stroke-width="2" />
-        </button>
+        </Button>
 
-        <!-- Desktop Help -->
-        <button
-          type="button"
-          title="Help"
-          class="hidden h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring md:flex"
-          :class="
-            theme === 'light'
-              ? 'border-transparent bg-transparent shadow-none'
-              : 'border-secondary hover:border-surface hover:bg-surface'
-          "
-        >
+        <!-- Help -->
+        <Button text rounded severity="secondary" class="!hidden md:!inline-flex" aria-label="Help">
           <CircleHelp class="h-5 w-5" :stroke-width="2" />
-        </button>
+        </Button>
 
         <!-- Notifications -->
-        <button
-          type="button"
-          title="Notifications"
-          class="relative flex h-10 w-10 items-center justify-center rounded-lg border text-muted-text transition-all duration-200 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-ring"
-          :class="
-            theme === 'light'
-              ? 'border-transparent bg-transparent shadow-none'
-              : 'border-secondary hover:border-surface hover:bg-surface'
-          "
-        >
-          <Bell class="h-5 w-5" :stroke-width="2" />
-
-          <span
-            class="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-secondary bg-primary px-1 text-[10px] font-bold text-primary-foreground"
-          >
-            1
-          </span>
-        </button>
+        <OverlayBadge value="1" severity="warn">
+          <Button text rounded severity="secondary" aria-label="Notifications">
+            <Bell class="h-5 w-5" :stroke-width="2" />
+          </Button>
+        </OverlayBadge>
 
         <div class="mx-1 hidden h-8 w-px bg-surface sm:block" />
 
         <!-- =================================================== -->
-        <!-- PRIMEVUE USER POPUP MENU -->
+        <!-- PROFILE POPUP MENU -->
         <!-- =================================================== -->
 
         <div>
-          <!-- Popup Menu Trigger -->
           <button
             type="button"
             aria-haspopup="true"
             aria-controls="user-popup-menu"
-            class="flex items-center gap-2 rounded-lg border p-1 transition-all duration-200 hover:border-primary focus:outline-none focus:ring-2 focus:ring-ring sm:p-1.5 sm:pr-2"
-            :class="
-              theme === 'light'
-                ? 'border-transparent bg-transparent shadow-none'
-                : 'border-surface bg-surface shadow-sm'
-            "
+            class="flex items-center gap-2 rounded-xl border border-surface bg-surface p-1 transition-colors duration-200 hover:border-primary sm:p-1.5 sm:pr-2"
             @click="toggleUserPopupMenu"
           >
-            <span
-              class="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground sm:h-9 sm:w-9 sm:text-sm"
-            >
-              {{ userInitials || 'BM' }}
-            </span>
+            <Avatar
+              :label="userInitials || 'BM'"
+              shape="circle"
+              class="!h-8 !w-8 !bg-primary !text-xs !font-bold !text-primary-foreground sm:!h-9 sm:!w-9"
+            />
 
             <span
               v-if="userName"
@@ -665,31 +621,26 @@ onBeforeUnmount(() => {
             />
           </button>
 
-          <!-- PrimeVue Popup -->
           <Menu
             id="user-popup-menu"
             ref="userPopupMenu"
-            :model="popupMenuItems"
+            :model="profileMenuItems"
             popup
-            class="z-[9999] mt-2 w-72 overflow-hidden rounded-lg border border-border bg-card p-0 text-card-foreground"
-            :class="theme === 'light' ? 'shadow-none' : 'shadow-xl'"
+            class="z-[9999] mt-2 w-72 overflow-hidden rounded-xl border border-border bg-card p-0 text-card-foreground shadow-xl"
           >
-            <!-- User Details -->
+            <!-- User Summary -->
             <template #start>
               <div class="border-b border-border px-5 py-4">
                 <div class="flex items-center gap-3">
-                  <span
-                    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground"
-                  >
-                    {{ userInitials || 'BM' }}
-                  </span>
+                  <Avatar
+                    :label="userInitials || 'BM'"
+                    shape="circle"
+                    class="!bg-primary !font-bold !text-primary-foreground"
+                  />
 
                   <div class="min-w-0">
-                    <p
-                      v-if="userName"
-                      class="truncate text-sm font-semibold text-heading"
-                    >
-                      {{ userName }}
+                    <p class="truncate text-sm font-semibold text-heading">
+                      {{ userName || 'User Name' }}
                     </p>
 
                     <p class="mt-1 truncate text-xs text-muted-text">
@@ -700,17 +651,13 @@ onBeforeUnmount(() => {
               </div>
             </template>
 
-            <!-- Menu Items -->
+            <!-- Popup Items -->
             <template #item="{ item, props: menuItemProps }">
               <a
                 v-ripple
                 v-bind="menuItemProps.action"
                 class="flex cursor-pointer items-center gap-3 px-5 py-3 text-sm font-medium transition-colors duration-200 hover:bg-surface hover:text-primary"
-                :class="
-                  item.danger
-                    ? 'text-error hover:text-error'
-                    : 'text-secondary-text'
-                "
+                :class="item.danger ? 'text-error hover:text-error' : 'text-secondary-text'"
               >
                 <span :class="item.icon" class="text-[16px]" />
 
@@ -728,16 +675,7 @@ onBeforeUnmount(() => {
     <!-- PAGE CONTENT -->
     <!-- ======================================================= -->
 
-    <section
-      class="min-h-screen pt-[76px] transition-all duration-300"
-      :class="
-        isMobile
-          ? 'ml-0'
-          : isSidebarOpen
-            ? 'ml-72'
-            : 'ml-20'
-      "
-    >
+    <section class="min-h-screen pt-[76px]">
       <div class="min-h-[calc(100vh-76px)] bg-background p-5 sm:p-8">
         <div class="mx-auto max-w-[1600px]">
           <slot />

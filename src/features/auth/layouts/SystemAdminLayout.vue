@@ -31,25 +31,13 @@ const sidebarItems = [
   {
     label: 'Cooperative Unions',
     path: '/admin/cooperative-unions',
-    icon: Network,
-    children: [
-      {
-        label: 'Cooperative Unions',
-        path: '/admin/cooperative-unions',
-      },
-    ],
+    icon: Network
   },
 
   {
     label: 'Cooperatives',
     path: '/admin/cooperatives',
-    icon: Building2,
-    children: [
-      {
-        label: 'Cooperatives',
-        path: '/admin/cooperatives',
-      },
-    ],
+    icon: Building2
   },
 
   {
