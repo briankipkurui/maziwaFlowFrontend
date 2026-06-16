@@ -1,0 +1,138 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - region "Notifications alt+T":
+      - list
+    - main [ref=e34]:
+      - complementary [ref=e35]:
+        - generic [ref=e36]:
+          - generic [ref=e49]:
+            - heading "MaziwaFlow" [level=1] [ref=e50]
+            - paragraph [ref=e51]: Platform Management
+          - paragraph [ref=e53]: System Admin
+          - navigation [ref=e54]:
+            - generic [ref=e55]:
+              - link "📊 Dashboard" [ref=e57] [cursor=pointer]:
+                - /url: /admin
+                - generic [ref=e58]:
+                  - generic [ref=e59]: 📊
+                  - generic [ref=e60]: Dashboard
+              - generic [ref=e61]:
+                - button "🏢 Cooperative Unions ▼" [ref=e62]:
+                  - generic [ref=e63]:
+                    - generic [ref=e64]: 🏢
+                    - generic [ref=e65]: Cooperative Unions
+                  - generic [ref=e66]: ▼
+                - link "view" [active] [ref=e107] [cursor=pointer]:
+                  - /url: /admin/cooperative-unions
+              - button "🏢 Cooperatives ▼" [ref=e68]:
+                - generic [ref=e69]:
+                  - generic [ref=e70]: 🏢
+                  - generic [ref=e71]: Cooperatives
+                - generic [ref=e72]: ▼
+              - button "👥 Users ▼" [ref=e74]:
+                - generic [ref=e75]:
+                  - generic [ref=e76]: 👥
+                  - generic [ref=e77]: Users
+                - generic [ref=e78]: ▼
+              - button "📄 Reports ▼" [ref=e80]:
+                - generic [ref=e81]:
+                  - generic [ref=e82]: 📄
+                  - generic [ref=e83]: Reports
+                - generic [ref=e84]: ▼
+              - button "⚙️ Settings ▼" [ref=e86]:
+                - generic [ref=e87]:
+                  - generic [ref=e88]: ⚙️
+                  - generic [ref=e89]: Settings
+                - generic [ref=e90]: ▼
+          - button "↩ Logout" [ref=e92]:
+            - generic [ref=e93]: ↩
+            - generic [ref=e94]: Logout
+      - generic [ref=e95]:
+        - button "☰" [ref=e96]:
+          - generic [ref=e97]: ☰
+        - generic [ref=e98]:
+          - button "📣" [ref=e99]
+          - button "?" [ref=e100]
+          - button "🔔 1" [ref=e101]:
+            - text: 🔔
+            - generic [ref=e102]: "1"
+          - button "BM" [ref=e103]
+      - generic [ref=e108]:
+        - generic [ref=e109]:
+          - generic [ref=e110]:
+            - heading "Cooperative Unions" [level=1] [ref=e111]
+            - paragraph [ref=e112]: Manage cooperative unions and their registration details.
+          - generic [ref=e113]:
+            - generic [ref=e114]:
+              - generic [ref=e115]: 🔍
+              - textbox "Search cooperative unions" [ref=e116]
+            - button "➕ Create Union" [ref=e117] [cursor=pointer]
+        - generic [ref=e118]:
+          - paragraph [ref=e119]: "Total: 3 union(s)"
+          - button "⟳" [ref=e120] [cursor=pointer]
+        - generic [ref=e121]:
+          - table [ref=e123]:
+            - rowgroup [ref=e124]:
+              - row "Union Information County Ward KRA PIN Created At Action" [ref=e125]:
+                - columnheader "Union Information" [ref=e126]
+                - columnheader "County" [ref=e127]
+                - columnheader "Ward" [ref=e128]
+                - columnheader "KRA PIN" [ref=e129]
+                - columnheader "Created At" [ref=e130]
+                - columnheader "Action" [ref=e131]
+            - rowgroup [ref=e132]:
+              - 'row "a asx ID: 019e8e87-6bcc-7f3a-981a-270506d6f199 ASDFCV QWSDC qwsdcqwsdqwsdc asx 03 Jun 2026 ✏️" [ref=e133] [cursor=pointer]':
+                - 'cell "a asx ID: 019e8e87-6bcc-7f3a-981a-270506d6f199 ASDFCV" [ref=e134]':
+                  - generic [ref=e135]:
+                    - generic [ref=e136]: a
+                    - generic [ref=e137]:
+                      - paragraph [ref=e138]: asx
+                      - paragraph [ref=e139]: "ID: 019e8e87-6bcc-7f3a-981a-270506d6f199"
+                      - paragraph [ref=e140]: ASDFCV
+                - cell "QWSDC" [ref=e141]
+                - cell "qwsdcqwsdqwsdc" [ref=e142]
+                - cell "asx" [ref=e143]:
+                  - generic [ref=e144]: asx
+                - cell "03 Jun 2026" [ref=e145]
+                - cell "✏️" [ref=e146]:
+                  - button "✏️" [ref=e147]
+              - 'row "K Kaplelach Farmers Association ID: 019e8e3b-7487-7166-bda4-d860b990baa9 Kaplelach Farmers Association Uasin Gishu OLARE 22AHIOS 03 Jun 2026 ✏️" [ref=e148] [cursor=pointer]':
+                - 'cell "K Kaplelach Farmers Association ID: 019e8e3b-7487-7166-bda4-d860b990baa9 Kaplelach Farmers Association" [ref=e149]':
+                  - generic [ref=e150]:
+                    - generic [ref=e151]: K
+                    - generic [ref=e152]:
+                      - paragraph [ref=e153]: Kaplelach Farmers Association
+                      - paragraph [ref=e154]: "ID: 019e8e3b-7487-7166-bda4-d860b990baa9"
+                      - paragraph [ref=e155]: Kaplelach Farmers Association
+                - cell "Uasin Gishu" [ref=e156]
+                - cell "OLARE" [ref=e157]
+                - cell "22AHIOS" [ref=e158]:
+                  - generic [ref=e159]: 22AHIOS
+                - cell "03 Jun 2026" [ref=e160]
+                - cell "✏️" [ref=e161]:
+                  - button "✏️" [ref=e162]
+              - 'row "M Maziwa Flow Union ID: 11111111-1111-4111-8111-111111111111 Initial cooperative union for the platform Nandi Kobujoi P000111 02 Jun 2026 ✏️" [ref=e163] [cursor=pointer]':
+                - 'cell "M Maziwa Flow Union ID: 11111111-1111-4111-8111-111111111111 Initial cooperative union for the platform" [ref=e164]':
+                  - generic [ref=e165]:
+                    - generic [ref=e166]: M
+                    - generic [ref=e167]:
+                      - paragraph [ref=e168]: Maziwa Flow Union
+                      - paragraph [ref=e169]: "ID: 11111111-1111-4111-8111-111111111111"
+                      - paragraph [ref=e170]: Initial cooperative union for the platform
+                - cell "Nandi" [ref=e171]
+                - cell "Kobujoi" [ref=e172]
+                - cell "P000111" [ref=e173]:
+                  - generic [ref=e174]: P000111
+                - cell "02 Jun 2026" [ref=e175]
+                - cell "✏️" [ref=e176]:
+                  - button "✏️" [ref=e177]
+          - generic [ref=e178]:
+            - paragraph [ref=e179]: Page 1 of 1
+            - generic [ref=e180]:
+              - button "← Previous" [disabled]
+              - button "Next →" [disabled]
+  - generic [ref=e22]:
+    - generic "Toggle devtools panel" [ref=e23] [cursor=pointer]:
+      - img [ref=e24]
+    - generic "Toggle Component Inspector" [ref=e29] [cursor=pointer]:
+      - img [ref=e30]

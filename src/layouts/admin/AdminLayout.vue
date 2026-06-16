@@ -1,25 +1,38 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import type { Component } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Bell, ChevronDown, CircleHelp, Megaphone, Moon, Sun } from 'lucide-vue-next';
+
+import Avatar from 'primevue/avatar';
+import Badge from 'primevue/badge';
+import Button from 'primevue/button';
+import Divider from 'primevue/divider';
+import Drawer from 'primevue/drawer';
+import Menu from 'primevue/menu';
+import OverlayBadge from 'primevue/overlaybadge';
+import PanelMenu from 'primevue/panelmenu';
+import ScrollPanel from 'primevue/scrollpanel';
+
+import type { MenuItem } from 'primevue/menuitem';
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type ChildSidebarItem = {
   label: string;
   path: string;
+  icon?: Component;
+  badge?: string;
+  children?: ChildSidebarItem[];
 };
 
 type SidebarItem = {
   label: string;
   path: string;
-  icon: string;
+  icon: Component;
   badge?: string;
   children?: ChildSidebarItem[];
 };
@@ -30,7 +43,26 @@ type UserMenuItem = {
   danger?: boolean;
 };
 
-defineProps<{
+type PrimeSidebarItem = MenuItem & {
+  key: string;
+  route?: string;
+  iconComponent?: Component;
+  badge?: string;
+  level: number;
+  items?: PrimeSidebarItem[];
+};
+
+type PrimeProfileItem = MenuItem & {
+  danger?: boolean;
+};
+
+type Theme = 'dark' | 'light';
+
+/* ============================================================
+   PROPS AND EVENTS
+============================================================ */
+
+const props = defineProps<{
   title: string;
   subtitle: string;
   sidebarItems: SidebarItem[];
@@ -43,299 +75,815 @@ defineProps<{
 
 const emit = defineEmits<{
   logout: [];
+  announcements: [];
 }>();
 
+/* ============================================================
+   STATE
+============================================================ */
+
 const route = useRoute();
+const router = useRouter();
 
-const isSidebarOpen = ref(true);
-const openMenus = ref<string[]>([]);
+const MOBILE_BREAKPOINT = 768;
 
-const toggleSidebar = () => {
-  isSidebarOpen.value = !isSidebarOpen.value;
+const isMobile = ref(false);
+const isDrawerVisible = ref(false);
+const theme = ref<Theme>('dark');
+
+const expandedKeys = ref<Record<string, boolean>>({});
+
+const userPopupMenu = ref<InstanceType<typeof Menu> | null>(null);
+
+/* ============================================================
+   THEME
+============================================================ */
+
+const applyTheme = (selectedTheme: Theme) => {
+  document.documentElement.classList.toggle('light', selectedTheme === 'light');
+
+  localStorage.setItem('theme', selectedTheme);
 };
 
-const toggleChildMenu = (label: string) => {
-  if (openMenus.value.includes(label)) {
-    openMenus.value = openMenus.value.filter((item) => item !== label);
+const toggleTheme = () => {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark';
+
+  applyTheme(theme.value);
+};
+
+/* ============================================================
+   RESPONSIVE SIDEBAR
+============================================================ */
+
+const syncViewport = () => {
+  isMobile.value = window.innerWidth < MOBILE_BREAKPOINT;
+
+  if (!isMobile.value) {
+    isDrawerVisible.value = false;
+  }
+};
+
+const openDrawer = () => {
+  isDrawerVisible.value = true;
+};
+
+const closeDrawer = () => {
+  isDrawerVisible.value = false;
+};
+
+/* ============================================================
+   ROUTE HELPERS
+============================================================ */
+
+const isRouteActive = (path?: string): boolean => {
+  if (!path) {
+    return false;
+  }
+
+  const currentPath = route.path.replace(/\/+$/, '');
+  const itemPath = path.replace(/\/+$/, '');
+
+  // Dashboard should only be active on its exact route
+  if (itemPath === '/admin') {
+    return currentPath === itemPath;
+  }
+
+  // Other menu items remain active on nested routes
+  return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
+};
+
+/* ============================================================
+   PRIMEVUE PANEL MENU MODEL
+============================================================ */
+
+const mapChildSidebarItem = (item: ChildSidebarItem, level: number): PrimeSidebarItem => {
+  const hasChildren = Boolean(item.children?.length);
+
+  return {
+    key: item.path,
+    label: item.label,
+    route: hasChildren ? undefined : item.path,
+    iconComponent: item.icon,
+    badge: item.badge,
+    level,
+
+    command: hasChildren
+      ? undefined
+      : () => {
+          void router.push(item.path).then(() => {
+            closeDrawer();
+          });
+        },
+
+    items: item.children?.map((child) => mapChildSidebarItem(child, level + 1)),
+  };
+};
+
+const sidebarMenuItems = computed<PrimeSidebarItem[]>(() => {
+  return props.sidebarItems.map((item) => {
+    const hasChildren = Boolean(item.children?.length);
+
+    return {
+      key: item.path,
+      label: item.label,
+      route: hasChildren ? undefined : item.path,
+      iconComponent: item.icon,
+      badge: item.badge,
+      level: 0,
+
+      command: hasChildren
+        ? undefined
+        : () => {
+            void router.push(item.path).then(() => {
+              closeDrawer();
+            });
+          },
+
+      items: item.children?.map((child) => mapChildSidebarItem(child, 1)),
+    };
+  });
+});
+
+const getSidebarIcon = (item: MenuItem): Component | undefined => {
+  return (item as PrimeSidebarItem).iconComponent;
+};
+
+const getSidebarBadge = (item: MenuItem): string | undefined => {
+  return (item as PrimeSidebarItem).badge;
+};
+
+const getSidebarLevel = (item: MenuItem): number => {
+  return (item as PrimeSidebarItem).level ?? 0;
+};
+
+const isNestedSidebarItem = (item: MenuItem): boolean => {
+  return getSidebarLevel(item) > 0;
+};
+
+const isExactSidebarItemActive = (item: MenuItem): boolean => {
+  const sidebarItem = item as PrimeSidebarItem;
+
+  return isRouteActive(sidebarItem.route);
+};
+
+const hasActiveChild = (item: MenuItem): boolean => {
+  const sidebarItem = item as PrimeSidebarItem;
+
+  return (
+    sidebarItem.items?.some((child) => {
+      return isExactSidebarItemActive(child) || hasActiveChild(child);
+    }) === true
+  );
+};
+
+const getSidebarItemClasses = (item: MenuItem): string => {
+  const isExactActive = isExactSidebarItemActive(item);
+  const containsActiveChild = hasActiveChild(item);
+  const isNested = isNestedSidebarItem(item);
+
+  if (isExactActive && !isNested) {
+    return 'bg-primary text-primary-foreground shadow-sm';
+  }
+
+  if (isExactActive && isNested) {
+    return 'border border-primary/30 bg-primary/10 text-primary';
+  }
+
+  if (containsActiveChild) {
+    return theme.value === 'light' ? 'bg-orange-50 text-primary' : 'bg-surface text-primary';
+  }
+
+  if (isNested) {
+    return theme.value === 'light'
+      ? 'text-[#52525b] hover:bg-[#f4f4f5] hover:text-primary'
+      : 'text-muted-text hover:bg-surface hover:text-heading';
+  }
+
+  return theme.value === 'light'
+    ? 'text-[#343434] hover:bg-orange-50 hover:text-primary'
+    : 'text-secondary-text hover:bg-surface hover:text-primary';
+};
+
+const getSidebarIconClasses = (item: MenuItem): string => {
+  const isExactActive = isExactSidebarItemActive(item);
+  const containsActiveChild = hasActiveChild(item);
+
+  if (isExactActive) {
+    return 'bg-white/15 text-primary-foreground';
+  }
+
+  if (containsActiveChild) {
+    return theme.value === 'light' ? 'bg-orange-100 text-primary' : 'bg-primary/15 text-primary';
+  }
+
+  return theme.value === 'light'
+    ? 'bg-[#f4f4f5] text-[#71717a] group-hover:bg-orange-100 group-hover:text-primary'
+    : 'bg-surface text-muted-text group-hover:text-primary';
+};
+
+const collectActiveParentKeys = (
+  items: PrimeSidebarItem[],
+  collectedKeys: Record<string, boolean>,
+): boolean => {
+  let containsActiveRoute = false;
+
+  for (const item of items) {
+    const itemIsActive = isRouteActive(item.route);
+
+    const childIsActive = item.items?.length
+      ? collectActiveParentKeys(item.items, collectedKeys)
+      : false;
+
+    if (childIsActive) {
+      collectedKeys[item.key] = true;
+    }
+
+    if (itemIsActive || childIsActive) {
+      containsActiveRoute = true;
+    }
+  }
+
+  return containsActiveRoute;
+};
+
+const expandActiveMenus = () => {
+  const activeKeys: Record<string, boolean> = {};
+
+  collectActiveParentKeys(sidebarMenuItems.value, activeKeys);
+
+  expandedKeys.value = {
+    ...expandedKeys.value,
+    ...activeKeys,
+  };
+};
+
+watch(
+  [sidebarMenuItems, () => route.path],
+  () => {
+    expandActiveMenus();
+  },
+  {
+    immediate: true,
+  },
+);
+
+/* ============================================================
+   PROFILE POPUP MENU
+============================================================ */
+
+const toggleUserPopupMenu = (event: Event) => {
+  userPopupMenu.value?.toggle(event);
+};
+
+const profileMenuItems = computed<PrimeProfileItem[]>(() => {
+  const items: PrimeProfileItem[] = [];
+
+  if (isMobile.value) {
+    items.push(
+      {
+        label: theme.value === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+        icon: theme.value === 'dark' ? 'pi pi-sun' : 'pi pi-moon',
+        command: toggleTheme,
+      },
+      {
+        label: 'Announcements',
+        icon: 'pi pi-megaphone',
+        command: () => emit('announcements'),
+      },
+      {
+        separator: true,
+      },
+    );
+  }
+
+  items.push(
+    ...props.userMenuItems.map((item) => ({
+      label: item.label,
+      icon: item.danger ? 'pi pi-sign-out' : 'pi pi-user',
+      danger: item.danger,
+
+      command: () => {
+        if (item.danger) {
+          emit('logout');
+
+          return;
+        }
+
+        if (item.path) {
+          void router.push(item.path);
+        }
+      },
+    })),
+  );
+
+  return items;
+});
+
+/* ============================================================
+   INITIALIZATION
+============================================================ */
+
+onMounted(() => {
+  syncViewport();
+
+  window.addEventListener('resize', syncViewport);
+
+  const savedTheme = localStorage.getItem('theme');
+
+  if (savedTheme === 'dark' || savedTheme === 'light') {
+    theme.value = savedTheme;
   } else {
-    openMenus.value.push(label);
+    theme.value = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   }
-};
 
-const isMenuOpen = (item: SidebarItem) => {
-  return (
-    openMenus.value.includes(item.label) ||
-    item.children?.some(
-      (child) => route.path === child.path || route.path.startsWith(child.path + '/'),
-    )
-  );
-};
+  applyTheme(theme.value);
+});
 
-const isParentActive = (item: SidebarItem) => {
-  return (
-    route.path === item.path ||
-    item.children?.some(
-      (child) => route.path === child.path || route.path.startsWith(child.path + '/'),
-    )
-  );
-};
-
-const handleMenuClick = (item: UserMenuItem) => {
-  if (item.danger) {
-    emit('logout');
-  }
-};
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncViewport);
+});
 </script>
 
 <template>
-  <main class="min-h-screen bg-slate-50">
-    <!-- Sidebar -->
-    <aside
-      class="fixed left-0 top-0 z-40 h-screen border-r border-slate-200 bg-white shadow-sm transition-all duration-300"
-      :class="isSidebarOpen ? 'w-72' : 'w-20'"
+  <main class="min-h-screen bg-background text-foreground">
+    <!-- ======================================================= -->
+    <!-- MOBILE DRAWER -->
+    <!-- ======================================================= -->
+
+    <Drawer
+      id="admin-mobile-sidebar"
+      v-model:visible="isDrawerVisible"
+      position="left"
+      :show-close-icon="false"
+      class="!w-full sm:!w-[360px] md:!hidden"
     >
-      <div class="flex h-full flex-col">
-        <!-- Logo -->
-        <div
-          class="flex h-[76px] items-center border-b border-slate-100 px-4"
-          :class="isSidebarOpen ? 'justify-start' : 'justify-center'"
-        >
-          <div class="flex items-center gap-3">
-            <div class="grid grid-cols-3 gap-[3px]">
-              <span v-for="i in 9" :key="i" class="h-2.5 w-2.5 rounded-[2px] bg-green-600" />
+      <template #container="{ closeCallback }">
+        <div class="flex h-full flex-col bg-secondary text-secondary-text">
+          <!-- Mobile Brand -->
+          <div class="flex h-[76px] shrink-0 items-center justify-between px-5">
+            <div class="flex min-w-0 items-center gap-3">
+              <div class="grid h-11 w-11 shrink-0 grid-cols-3 gap-[3px] rounded-xl bg-surface p-2">
+                <span
+                  v-for="i in 9"
+                  :key="i"
+                  class="rounded-[2px]"
+                  :class="i === 5 || i === 7 ? 'bg-heading' : 'bg-primary'"
+                />
+              </div>
+
+              <div class="min-w-0 leading-tight">
+                <h1 class="truncate text-[21px] font-extrabold tracking-tight text-heading">
+                  Maziwa<span class="text-primary">Flow</span>
+                </h1>
+
+                <p
+                  class="mt-1 truncate text-[10px] font-bold uppercase tracking-[0.2em] text-muted-text"
+                >
+                  {{ subtitle }}
+                </p>
+              </div>
             </div>
 
-            <div v-if="isSidebarOpen" class="leading-tight">
-              <h1 class="text-[25px] font-semibold text-green-600">MaziwaFlow</h1>
-              <p class="mt-0.5 text-xs font-medium text-black">
-                {{ subtitle }}
+            <Button
+              icon="pi pi-times"
+              rounded
+              outlined
+              severity="secondary"
+              aria-label="Close sidebar"
+              @click="closeCallback"
+            />
+          </div>
+
+          <Divider class="!my-0" />
+
+          <!-- Mobile Navigation -->
+          <div class="min-h-0 flex-1">
+            <ScrollPanel class="h-full">
+              <div class="px-3 py-5">
+                <p
+                  class="mb-4 px-3 text-[10px] font-extrabold uppercase tracking-[0.3em]"
+                  :class="theme === 'light' ? 'text-[#52525b]' : 'text-subtle-text'"
+                >
+                  {{ title }}
+                </p>
+
+                <PanelMenu
+                  v-model:expanded-keys="expandedKeys"
+                  :model="sidebarMenuItems"
+                  multiple
+                  unstyled
+                  class="w-full"
+                >
+                  <template #item="{ item, props: panelMenuProps, hasSubmenu, active }">
+                    <a
+                      v-ripple
+                      v-bind="panelMenuProps.action"
+                      class="group mb-1 flex w-full cursor-pointer items-center transition-all duration-200"
+                      :class="[
+                        getSidebarItemClasses(item),
+                        isNestedSidebarItem(item)
+                          ? 'gap-3 rounded-lg px-3 py-2 text-[13px] font-medium'
+                          : 'gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold',
+                      ]"
+                      :style="{
+                        paddingLeft: `${12 + getSidebarLevel(item) * 18}px`,
+                      }"
+                    >
+                      <!-- Top-Level Icon -->
+                      <span
+                        v-if="!isNestedSidebarItem(item)"
+                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors duration-200"
+                        :class="getSidebarIconClasses(item)"
+                      >
+                        <component
+                          v-if="getSidebarIcon(item)"
+                          :is="getSidebarIcon(item)"
+                          class="h-[17px] w-[17px]"
+                          :stroke-width="2"
+                        />
+
+                        <i v-else class="pi pi-circle-fill text-[7px]" />
+                      </span>
+
+                      <!-- Child Item Dot -->
+                      <span v-else class="flex h-5 w-5 shrink-0 items-center justify-center">
+                        <span
+                          class="h-2 w-2 rounded-full transition-all duration-200"
+                          :class="
+                            isExactSidebarItemActive(item)
+                              ? 'bg-primary ring-4 ring-primary/15'
+                              : 'bg-muted-text/70 group-hover:bg-primary'
+                          "
+                        />
+                      </span>
+
+                      <span class="min-w-0 flex-1 truncate">
+                        {{ item.label }}
+                      </span>
+
+                      <Badge
+                        v-if="getSidebarBadge(item)"
+                        :value="getSidebarBadge(item)"
+                        severity="contrast"
+                      />
+
+                      <i
+                        v-if="hasSubmenu"
+                        class="pi text-xs transition-transform duration-200"
+                        :class="[
+                          active ? 'pi-chevron-down' : 'pi-chevron-right',
+                          hasActiveChild(item) ? 'text-primary' : '',
+                        ]"
+                      />
+                    </a>
+                  </template>
+                </PanelMenu>
+              </div>
+            </ScrollPanel>
+          </div>
+
+          <!-- Mobile Footer -->
+          <Divider class="!my-0" />
+
+          <div class="flex shrink-0 items-center gap-3 px-5 py-4">
+            <Avatar
+              :label="userInitials || 'BM'"
+              shape="circle"
+              class="!bg-primary !text-primary-foreground"
+            />
+
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-bold text-heading">
+                {{ userName || 'User Name' }}
+              </p>
+
+              <p class="truncate text-xs text-muted-text">
+                {{ userEmail || 'user@email.com' }}
               </p>
             </div>
+
+            <Button
+              icon="pi pi-sign-out"
+              rounded
+              text
+              severity="danger"
+              aria-label="Logout"
+              @click="emit('logout')"
+            />
           </div>
         </div>
+      </template>
+    </Drawer>
 
-        <!-- Sidebar Title -->
-        <div v-if="isSidebarOpen" class="px-5 pb-2 pt-5">
-          <p class="text-xs font-bold uppercase tracking-[0.18em] text-black">
-            {{ title }}
+    <!-- ======================================================= -->
+    <!-- DESKTOP SIDEBAR -->
+    <!-- ======================================================= -->
+
+    <aside
+      class="fixed bottom-0 left-0 top-0 z-40 hidden w-[320px] flex-col border-r border-surface bg-secondary text-secondary-text md:flex"
+    >
+      <!-- Desktop Brand -->
+      <div class="flex h-[76px] shrink-0 items-center px-5">
+        <div class="flex min-w-0 items-center gap-3">
+          <div class="grid h-11 w-11 shrink-0 grid-cols-3 gap-[3px] rounded-xl bg-surface p-2">
+            <span
+              v-for="i in 9"
+              :key="i"
+              class="rounded-[2px]"
+              :class="i === 5 || i === 7 ? 'bg-heading' : 'bg-primary'"
+            />
+          </div>
+
+          <div class="min-w-0 leading-tight">
+            <h1 class="truncate text-[21px] font-extrabold tracking-tight text-heading">
+              Maziwa<span class="text-primary">Flow</span>
+            </h1>
+
+            <p
+              class="mt-1 truncate text-[10px] font-bold uppercase tracking-[0.2em] text-muted-text"
+            >
+              {{ subtitle }}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <Divider class="!my-0" />
+
+      <!-- Desktop Navigation -->
+      <div class="min-h-0 flex-1">
+        <ScrollPanel class="h-full">
+          <div class="px-3 py-5">
+            <p
+              class="mb-4 px-3 text-[10px] font-extrabold uppercase tracking-[0.3em]"
+              :class="theme === 'light' ? 'text-[#52525b]' : 'text-subtle-text'"
+            >
+              {{ title }}
+            </p>
+
+            <PanelMenu
+              v-model:expanded-keys="expandedKeys"
+              :model="sidebarMenuItems"
+              multiple
+              unstyled
+              class="w-full"
+            >
+              <template #item="{ item, props: panelMenuProps, hasSubmenu, active }">
+                <a
+                  v-ripple
+                  v-bind="panelMenuProps.action"
+                  class="group mb-1 flex w-full cursor-pointer items-center transition-all duration-200"
+                  :class="[
+                    getSidebarItemClasses(item),
+                    isNestedSidebarItem(item)
+                      ? 'gap-3 rounded-lg px-3 py-2 text-[13px] font-medium'
+                      : 'gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold',
+                  ]"
+                  :style="{
+                    paddingLeft: `${12 + getSidebarLevel(item) * 18}px`,
+                  }"
+                >
+                  <!-- Top-Level Icon -->
+                  <span
+                    v-if="!isNestedSidebarItem(item)"
+                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors duration-200"
+                    :class="getSidebarIconClasses(item)"
+                  >
+                    <component
+                      v-if="getSidebarIcon(item)"
+                      :is="getSidebarIcon(item)"
+                      class="h-[17px] w-[17px]"
+                      :stroke-width="2"
+                    />
+
+                    <i v-else class="pi pi-circle-fill text-[7px]" />
+                  </span>
+
+                  <!-- Child Item Dot -->
+                  <span v-else class="flex h-5 w-5 shrink-0 items-center justify-center">
+                    <span
+                      class="h-2 w-2 rounded-full transition-all duration-200"
+                      :class="
+                        isExactSidebarItemActive(item)
+                          ? 'bg-primary ring-4 ring-primary/15'
+                          : 'bg-muted-text/70 group-hover:bg-primary'
+                      "
+                    />
+                  </span>
+
+                  <span class="min-w-0 flex-1 truncate">
+                    {{ item.label }}
+                  </span>
+
+                  <Badge
+                    v-if="getSidebarBadge(item)"
+                    :value="getSidebarBadge(item)"
+                    severity="contrast"
+                  />
+
+                  <i
+                    v-if="hasSubmenu"
+                    class="pi text-xs transition-transform duration-200"
+                    :class="[
+                      active ? 'pi-chevron-down' : 'pi-chevron-right',
+                      hasActiveChild(item) ? 'text-primary' : '',
+                    ]"
+                  />
+                </a>
+              </template>
+            </PanelMenu>
+          </div>
+        </ScrollPanel>
+      </div>
+
+      <!-- Desktop Footer -->
+      <Divider class="!my-0" />
+
+      <div class="flex shrink-0 items-center gap-3 px-5 py-4">
+        <Avatar
+          :label="userInitials || 'BM'"
+          shape="circle"
+          class="!bg-primary !font-semibold !text-primary-foreground"
+        />
+
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-sm font-bold text-heading">
+            {{ userName || 'User Name' }}
+          </p>
+
+          <p class="truncate text-xs text-muted-text">
+            {{ userEmail || 'user@email.com' }}
           </p>
         </div>
 
-        <!-- Links -->
-        <nav class="flex-1 overflow-y-auto px-3 py-3">
-          <div class="space-y-1.5">
-            <div v-for="item in sidebarItems" :key="item.path">
-              <!-- Parent with children -->
-              <button
-                v-if="item.children?.length"
-                type="button"
-                class="group flex w-full items-center rounded-xl px-4 py-3 text-[15px] font-semibold transition-all duration-200"
-                :class="[
-                  isSidebarOpen ? 'justify-between' : 'justify-center',
-                  isParentActive(item)
-                    ? 'bg-green-50 text-green-700 shadow-sm'
-                    : 'text-slate-700 hover:bg-slate-100 hover:text-green-700',
-                ]"
-                @click="toggleChildMenu(item.label)"
-              >
-                <div class="flex items-center gap-3">
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-lg text-lg transition"
-                    :class="isParentActive(item) ? 'bg-white text-green-700' : 'text-slate-500'"
-                  >
-                    {{ item.icon }}
-                  </span>
-
-                  <span v-if="isSidebarOpen">
-                    {{ item.label }}
-                  </span>
-                </div>
-
-                <span
-                  v-if="isSidebarOpen"
-                  class="text-xs transition-transform duration-200"
-                  :class="isMenuOpen(item) ? 'rotate-180' : ''"
-                >
-                  ▼
-                </span>
-              </button>
-
-              <!-- Parent without children -->
-              <RouterLink
-                v-else
-                :to="item.path"
-                class="group flex items-center rounded-xl px-4 py-3 text-[15px] font-semibold transition-all duration-200"
-                :class="[
-                  isSidebarOpen ? 'justify-between' : 'justify-center',
-                  isParentActive(item)
-                    ? 'bg-green-50 text-green-700 shadow-sm'
-                    : 'text-slate-700 hover:bg-slate-100 hover:text-green-700',
-                ]"
-              >
-                <div class="flex items-center gap-3">
-                  <span
-                    class="flex h-8 w-8 items-center justify-center rounded-lg text-lg transition"
-                    :class="isParentActive(item) ? 'bg-white text-green-700' : 'text-slate-500'"
-                  >
-                    {{ item.icon }}
-                  </span>
-
-                  <span v-if="isSidebarOpen">
-                    {{ item.label }}
-                  </span>
-                </div>
-
-                <span
-                  v-if="item.badge && isSidebarOpen"
-                  class="rounded-full bg-yellow-400 px-2 py-[2px] text-[10px] font-bold text-slate-900"
-                >
-                  {{ item.badge }}
-                </span>
-              </RouterLink>
-
-              <!-- Children -->
-              <div
-                v-if="item.children?.length && isSidebarOpen && isMenuOpen(item)"
-                class="ml-8 mt-2 space-y-1 border-l border-slate-200 pl-4"
-              >
-                <RouterLink
-                  v-for="child in item.children"
-                  :key="child.path"
-                  :to="child.path"
-                  class="block rounded-lg px-3 py-2.5 text-sm font-medium transition"
-                  :class="
-                    route.path === child.path || route.path.startsWith(child.path + '/')
-                      ? 'bg-green-50 text-green-700'
-                      : 'text-slate-500 hover:bg-slate-100 hover:text-green-700'
-                  "
-                >
-                  {{ child.label }}
-                </RouterLink>
-              </div>
-            </div>
-          </div>
-        </nav>
-
-        <!-- Bottom -->
-        <div class="border-t border-slate-200 p-3">
-          <button
-            type="button"
-            class="flex w-full items-center rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-red-50 hover:text-red-600"
-            :class="isSidebarOpen ? 'gap-3 justify-start' : 'justify-center'"
-            @click="emit('logout')"
-          >
-            <span class="text-lg">↩</span>
-            <span v-if="isSidebarOpen">Logout</span>
-          </button>
-        </div>
+        <Button
+          icon="pi pi-sign-out"
+          rounded
+          text
+          severity="danger"
+          aria-label="Logout"
+          @click="emit('logout')"
+        />
       </div>
     </aside>
 
-    <!-- Top Bar -->
+    <!-- ======================================================= -->
+    <!-- HEADER -->
+    <!-- ======================================================= -->
+
     <header
-      class="fixed right-0 top-0 z-50 flex h-[76px] items-center justify-between border-b border-slate-200 bg-white/95 px-8 shadow-sm backdrop-blur transition-all duration-300"
-      :class="isSidebarOpen ? 'left-72' : 'left-20'"
+      class="fixed left-0 right-0 top-0 z-30 flex h-[76px] items-center justify-between border-b border-surface bg-secondary px-3 transition-all duration-300 sm:px-6 md:left-[320px]"
+      :class="theme === 'light' ? 'shadow-none' : 'shadow-lg'"
     >
-      <!-- Toggle Button -->
-      <button
-        type="button"
-        class="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl text-slate-700 shadow-sm transition hover:border-green-200 hover:bg-green-50 hover:text-green-600"
-        @click="toggleSidebar"
-      >
-        <span v-if="isSidebarOpen">☰</span>
-        <span v-else>☷</span>
-      </button>
-
       <div class="flex items-center gap-4">
-        <button
-          class="flex h-11 w-11 items-center justify-center rounded-full text-xl text-slate-700 transition hover:bg-green-50 hover:text-green-600"
-          type="button"
-        >
-          📣
-        </button>
+        <!-- Mobile Hamburger -->
+        <Button
+          icon="pi pi-bars"
+          text
+          rounded
+          severity="secondary"
+          class="md:!hidden"
+          aria-label="Open sidebar"
+          aria-controls="admin-mobile-sidebar"
+          :aria-expanded="isDrawerVisible"
+          @click="openDrawer"
+        />
 
-        <button
-          class="flex h-11 w-11 items-center justify-center rounded-full text-xl text-slate-700 transition hover:bg-green-50 hover:text-green-600"
-          type="button"
-        >
-          ?
-        </button>
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-subtle-text">Workspace</p>
 
-        <button
-          class="relative flex h-11 w-11 items-center justify-center rounded-full text-xl text-slate-700 transition hover:bg-green-50 hover:text-green-600"
-          type="button"
+          <p class="mt-1 text-sm font-semibold text-heading">
+            {{ title }}
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1 sm:gap-2 lg:gap-3">
+        <!-- Theme -->
+        <Button
+          text
+          rounded
+          severity="secondary"
+          class="!hidden md:!inline-flex"
+          :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+          @click="toggleTheme"
         >
-          🔔
-          <span
-            class="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-pink-600 text-[11px] font-bold text-white"
+          <Sun v-if="theme === 'dark'" class="h-5 w-5" :stroke-width="2" />
+
+          <Moon v-else class="h-5 w-5" :stroke-width="2" />
+        </Button>
+
+        <!-- Announcements -->
+        <Button
+          text
+          rounded
+          severity="secondary"
+          class="!hidden md:!inline-flex"
+          aria-label="Announcements"
+          @click="emit('announcements')"
+        >
+          <Megaphone class="h-5 w-5" :stroke-width="2" />
+        </Button>
+
+        <!-- Help -->
+        <Button text rounded severity="secondary" class="!hidden md:!inline-flex" aria-label="Help">
+          <CircleHelp class="h-5 w-5" :stroke-width="2" />
+        </Button>
+
+        <!-- Notifications -->
+        <OverlayBadge value="1" severity="warn">
+          <Button text rounded severity="secondary" aria-label="Notifications">
+            <Bell class="h-5 w-5" :stroke-width="2" />
+          </Button>
+        </OverlayBadge>
+
+        <div class="mx-1 hidden h-8 w-px bg-surface sm:block" />
+
+        <!-- Profile Menu -->
+        <div>
+          <button
+            type="button"
+            aria-haspopup="true"
+            aria-controls="user-popup-menu"
+            class="flex items-center gap-2 rounded-xl border border-surface bg-surface p-1 transition-colors duration-200 hover:border-primary sm:p-1.5 sm:pr-2"
+            @click="toggleUserPopupMenu"
           >
-            1
-          </span>
-        </button>
+            <Avatar
+              :label="userInitials || 'BM'"
+              shape="circle"
+              class="!h-8 !w-8 !bg-primary !text-xs !font-bold !text-primary-foreground sm:!h-9 sm:!w-9"
+            />
 
-        <!-- Avatar Dropdown -->
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <button
-              type="button"
-              class="flex h-12 w-12 items-center justify-center rounded-full bg-green-600 text-base font-bold text-white shadow-md shadow-green-200 transition hover:bg-green-700"
+            <span
+              v-if="userName"
+              class="hidden max-w-32 truncate text-sm font-semibold text-heading lg:block"
             >
-              {{ userInitials || 'BM' }}
-            </button>
-          </DropdownMenuTrigger>
+              {{ userName }}
+            </span>
 
-          <DropdownMenuContent
-            align="end"
-            side="bottom"
-            :side-offset="12"
-            class="z-[9999] w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-0 shadow-xl"
+            <ChevronDown
+              class="hidden h-4 w-4 shrink-0 text-muted-text lg:block"
+              :stroke-width="2.5"
+            />
+          </button>
+
+          <Menu
+            id="user-popup-menu"
+            ref="userPopupMenu"
+            :model="profileMenuItems"
+            popup
+            class="z-[9999] mt-2 w-72 overflow-hidden rounded-xl border border-border bg-card p-0 text-card-foreground shadow-xl"
           >
-            <DropdownMenuLabel class="px-5 py-4 font-normal">
-              <p class="text-sm font-medium text-slate-500">Signed in as</p>
-              <p class="mt-1 truncate text-sm font-semibold text-slate-900">
-                {{ userEmail || 'user@email.com' }}
-              </p>
-            </DropdownMenuLabel>
+            <template #start>
+              <div class="border-b border-border px-5 py-4">
+                <div class="flex items-center gap-3">
+                  <Avatar
+                    :label="userInitials || 'BM'"
+                    shape="circle"
+                    class="!bg-primary !font-bold !text-primary-foreground"
+                  />
 
-            <DropdownMenuSeparator />
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-semibold text-heading">
+                      {{ userName || 'User Name' }}
+                    </p>
 
-            <div class="py-2">
-              <template v-for="item in userMenuItems" :key="item.label">
-                <DropdownMenuItem v-if="item.path" as-child class="cursor-pointer p-0">
-                  <RouterLink
-                    :to="item.path"
-                    class="block w-full px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-green-50 hover:text-green-700"
-                  >
-                    {{ item.label }}
-                  </RouterLink>
-                </DropdownMenuItem>
+                    <p class="mt-1 truncate text-xs text-muted-text">
+                      {{ userEmail || 'user@email.com' }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </template>
 
-                <DropdownMenuItem
-                  v-else
-                  class="cursor-pointer px-5 py-3 text-sm font-medium transition"
-                  :class="
-                    item.danger
-                      ? 'text-red-600 focus:text-red-600 hover:bg-red-50'
-                      : 'text-slate-700 hover:bg-green-50 hover:text-green-700'
-                  "
-                  @click="handleMenuClick(item)"
-                >
+            <template #item="{ item, props: menuItemProps }">
+              <a
+                v-ripple
+                v-bind="menuItemProps.action"
+                class="flex cursor-pointer items-center gap-3 px-5 py-3 text-sm font-medium transition-colors duration-200 hover:bg-surface hover:text-primary"
+                :class="item.danger ? 'text-error hover:text-error' : 'text-secondary-text'"
+              >
+                <span :class="item.icon" class="text-[16px]" />
+
+                <span>
                   {{ item.label }}
-                </DropdownMenuItem>
-              </template>
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                </span>
+              </a>
+            </template>
+          </Menu>
+        </div>
       </div>
     </header>
 
-    <!-- Page Content -->
-    <section
-      class="min-h-screen pt-[76px] transition-all duration-300"
-      :class="isSidebarOpen ? 'ml-72' : 'ml-20'"
-    >
-      <div class="p-8">
-        <slot />
+    <!-- ======================================================= -->
+    <!-- PAGE CONTENT -->
+    <!-- ======================================================= -->
+
+    <section class="min-h-screen pt-[76px] transition-all duration-300 md:ml-[320px]">
+      <div class="min-h-[calc(100vh-76px)] bg-background p-5 sm:p-8">
+        <div class="mx-auto max-w-[1600px]">
+          <slot />
+        </div>
       </div>
     </section>
   </main>

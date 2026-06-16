@@ -1,22 +1,32 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Building2, FileText, LoaderCircle, MapPin, Save, ShieldCheck, X } from 'lucide-vue-next';
 
-// import { useCooperativeUnionsQuery } from '../composables/queries/cooperativeUnionQueries';
+import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
+import Divider from 'primevue/divider';
+import InputText from 'primevue/inputtext';
+import Select from 'primevue/select';
+import Textarea from 'primevue/textarea';
+import ToggleSwitch from 'primevue/toggleswitch';
 
-import type { Cooperative, CooperativePayload } from '../types/cooperative';
 import { useCooperativeUnionsQuery } from '@/features/cooperativeUnion/composables/queries/useCooperativeUnionsQuery';
+
 import type { CooperativeUnion } from '@/features/cooperativeUnion/types/cooperativeUnion';
+import type { Cooperative, CooperativePayload } from '../types/cooperative';
 
-// import type { CooperativeUnion } from '../types/cooperativeUnion';
-
-const props = defineProps<{
-  open: boolean;
-  cooperative?: Cooperative | null;
-  isSubmitting?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    cooperative?: Cooperative | null;
+    isSubmitting?: boolean;
+  }>(),
+  {
+    cooperative: null,
+    isSubmitting: false,
+  },
+);
 
 const emit = defineEmits<{
   close: [];
@@ -25,11 +35,13 @@ const emit = defineEmits<{
 
 const isEditMode = computed(() => Boolean(props.cooperative));
 
-const inputClass =
-  'h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-800 shadow-sm transition placeholder:text-slate-400 focus:border-green-600 focus:bg-white focus:ring-2 focus:ring-green-100';
+const dialogTitle = computed(() =>
+  isEditMode.value ? 'Update Cooperative' : 'Create Cooperative',
+);
 
-const textareaClass =
-  'min-h-24 w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-green-600 focus:bg-white focus:ring-2 focus:ring-green-100';
+const submitLabel = computed(() =>
+  isEditMode.value ? 'Update Cooperative' : 'Create Cooperative',
+);
 
 const createEmptyForm = (): CooperativePayload => ({
   code: '',
@@ -59,9 +71,11 @@ const createEmptyForm = (): CooperativePayload => ({
 
 const form = reactive<CooperativePayload>(createEmptyForm());
 
+/*
+  Cooperative union lookup.
+  PrimeVue Select provides filtering and replaces the previous custom dropdown.
+*/
 const unionSearch = ref('');
-const selectedUnionName = ref('');
-const isUnionDropdownOpen = ref(false);
 
 const cooperativeUnionQueryParams = computed(() => ({
   page: 1,
@@ -75,36 +89,53 @@ const {
   isError: isCooperativeUnionError,
 } = useCooperativeUnionsQuery(cooperativeUnionQueryParams);
 
-const cooperativeUnions = computed(() => cooperativeUnionData.value?.results ?? []);
+type CooperativeUnionOption = Pick<CooperativeUnion, 'id' | 'name'>;
 
-const selectedUnionLabel = computed(() => {
-  if (!form.cooperativeUnionId) {
-    return 'No cooperative union selected';
+const cooperativeUnionOptions = computed<CooperativeUnionOption[]>(() => {
+  const unions = cooperativeUnionData.value?.results ?? [];
+
+  /*
+    Keep an existing selected ID visible while editing, even when it is not
+    included in the currently loaded search results.
+  */
+  if (!form.cooperativeUnionId || unions.some((union) => union.id === form.cooperativeUnionId)) {
+    return unions;
   }
 
-  if (selectedUnionName.value) {
-    return selectedUnionName.value;
-  }
-
-  const selectedUnion = cooperativeUnions.value.find(
-    (union) => union.id === form.cooperativeUnionId,
-  );
-
-  return selectedUnion?.name ?? `Selected union: ${form.cooperativeUnionId}`;
+  return [
+    {
+      id: form.cooperativeUnionId,
+      name: `Selected union (${form.cooperativeUnionId})`,
+    },
+    ...unions,
+  ];
 });
 
+const cooperativeUnionIdModel = computed<string | null>({
+  get: () => form.cooperativeUnionId ?? null,
+  set: (value) => {
+    form.cooperativeUnionId = value ?? undefined;
+  },
+});
+
+const handleUnionFilter = (event: { value: string }) => {
+  unionSearch.value = event.value;
+};
+
+/*
+  Form population.
+*/
 const resetForm = () => {
   Object.assign(form, createEmptyForm());
-
   unionSearch.value = '';
-  selectedUnionName.value = '';
-  isUnionDropdownOpen.value = false;
 };
 
 const populateForm = (cooperative?: Cooperative | null) => {
   resetForm();
 
-  if (!cooperative) return;
+  if (!cooperative) {
+    return;
+  }
 
   Object.assign(form, {
     code: cooperative.code ?? '',
@@ -136,7 +167,9 @@ const populateForm = (cooperative?: Cooperative | null) => {
 watch(
   () => props.open,
   (open) => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
 
     populateForm(props.cooperative);
   },
@@ -145,7 +178,9 @@ watch(
 watch(
   () => props.cooperative,
   (cooperative) => {
-    if (!props.open) return;
+    if (!props.open) {
+      return;
+    }
 
     populateForm(cooperative);
   },
@@ -154,7 +189,9 @@ watch(
 watch(
   () => form.hasInsurance,
   (hasInsurance) => {
-    if (hasInsurance) return;
+    if (hasInsurance) {
+      return;
+    }
 
     form.insuranceProvider = '';
     form.insuranceType = '';
@@ -162,25 +199,21 @@ watch(
   },
 );
 
-const selectCooperativeUnion = (union: CooperativeUnion) => {
-  form.cooperativeUnionId = union.id;
-  selectedUnionName.value = union.name;
-
-  unionSearch.value = '';
-  isUnionDropdownOpen.value = false;
-};
-
-const clearCooperativeUnion = () => {
-  form.cooperativeUnionId = undefined;
-
-  selectedUnionName.value = '';
-  unionSearch.value = '';
-  isUnionDropdownOpen.value = false;
-};
-
+/*
+  Dialog actions.
+*/
 const handleClose = () => {
-  isUnionDropdownOpen.value = false;
+  if (props.isSubmitting) {
+    return;
+  }
+
   emit('close');
+};
+
+const handleVisibilityChange = (visible: boolean) => {
+  if (!visible) {
+    handleClose();
+  }
 };
 
 const handleSubmit = () => {
@@ -192,489 +225,681 @@ const handleSubmit = () => {
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="fade">
-      <div
-        v-if="open"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6 backdrop-blur-sm"
-        @click.self="handleClose"
-      >
-        <Transition name="scale">
-          <div
-            v-if="open"
-            class="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
-          >
-            <div class="mb-6 flex items-start justify-between border-b border-slate-100 pb-4">
-              <div>
-                <h2 class="text-xl font-bold text-slate-900">
-                  {{ isEditMode ? 'Update Cooperative' : 'Create Cooperative' }}
-                </h2>
-
-                <p class="mt-1 text-sm text-slate-500">
-                  Enter the cooperative registration, location and operational details below.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                class="rounded-full px-3 py-1 text-xl font-semibold text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                aria-label="Close modal"
-                @click="handleClose"
-              >
-                ×
-              </button>
-            </div>
-
-            <form class="grid gap-6" @submit.prevent="handleSubmit">
-              <section>
-                <h3 class="mb-3 text-sm font-bold text-slate-800">Basic Information</h3>
-
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Cooperative Code
-                    </label>
-
-                    <Input
-                      v-model="form.code"
-                      :class="inputClass"
-                      placeholder="Enter cooperative code"
-                      required
-                    />
-                  </div>
-
-                  <div class="space-y-1.5 sm:col-span-2">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Cooperative Name
-                    </label>
-
-                    <Input
-                      v-model="form.groupName"
-                      :class="inputClass"
-                      placeholder="Enter cooperative name"
-                      required
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Mobile Phone
-                    </label>
-
-                    <Input
-                      v-model="form.mobilePhone"
-                      type="tel"
-                      :class="inputClass"
-                      placeholder="Enter mobile phone"
-                      required
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      KRA PIN
-                    </label>
-
-                    <Input
-                      v-model="form.kraPin"
-                      :class="inputClass"
-                      placeholder="Enter KRA PIN"
-                      required
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Incorporation Number
-                    </label>
-
-                    <Input
-                      v-model="form.incorporationNumber"
-                      :class="inputClass"
-                      placeholder="Enter incorporation number"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5 sm:col-span-2">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Cooperative Union
-                      <span class="normal-case tracking-normal text-slate-400"> (Optional) </span>
-                    </label>
-
-                    <div class="relative">
-                      <button
-                        type="button"
-                        class="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 text-left text-sm shadow-sm transition hover:border-green-300 hover:bg-white focus:border-green-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-100"
-                        :aria-expanded="isUnionDropdownOpen"
-                        @click="isUnionDropdownOpen = !isUnionDropdownOpen"
-                      >
-                        <span
-                          :class="form.cooperativeUnionId ? 'text-slate-800' : 'text-slate-400'"
-                        >
-                          {{ selectedUnionLabel }}
-                        </span>
-
-                        <span class="text-xs text-slate-400">
-                          {{ isUnionDropdownOpen ? '▲' : '▼' }}
-                        </span>
-                      </button>
-
-                      <div
-                        v-if="isUnionDropdownOpen"
-                        class="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
-                      >
-                        <div class="border-b border-slate-100 p-3">
-                          <Input
-                            v-model="unionSearch"
-                            :class="inputClass"
-                            placeholder="Search cooperative unions"
-                            @click.stop
-                          />
-                        </div>
-
-                        <div class="max-h-64 overflow-y-auto p-2">
-                          <button
-                            v-if="form.cooperativeUnionId"
-                            type="button"
-                            class="mb-1 flex w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 transition hover:bg-red-50"
-                            @click="clearCooperativeUnion"
-                          >
-                            Remove Selected Union
-                          </button>
-
-                          <p
-                            v-if="isLoadingCooperativeUnions"
-                            class="px-3 py-4 text-center text-sm text-slate-500"
-                          >
-                            Loading cooperative unions...
-                          </p>
-
-                          <p
-                            v-else-if="isCooperativeUnionError"
-                            class="px-3 py-4 text-center text-sm text-red-600"
-                          >
-                            Failed to load cooperative unions.
-                          </p>
-
-                          <template v-else>
-                            <button
-                              v-for="union in cooperativeUnions"
-                              :key="union.id"
-                              type="button"
-                              class="flex w-full flex-col rounded-lg px-3 py-2 text-left transition hover:bg-green-50"
-                              :class="{
-                                'bg-green-50 ring-1 ring-green-100':
-                                  form.cooperativeUnionId === union.id,
-                              }"
-                              @click="selectCooperativeUnion(union)"
-                            >
-                              <span class="text-sm font-semibold text-slate-800">
-                                {{ union.name }}
-                              </span>
-
-                              <span class="mt-0.5 text-xs text-slate-500">
-                                {{ union.county || 'County not specified' }}
-
-                                <template v-if="union.kraPin"> · {{ union.kraPin }} </template>
-                              </span>
-                            </button>
-
-                            <p
-                              v-if="cooperativeUnions.length === 0"
-                              class="px-3 py-4 text-center text-sm text-slate-500"
-                            >
-                              No cooperative unions found.
-                            </p>
-                          </template>
-                        </div>
-                      </div>
-                    </div>
-
-                    <p class="text-xs text-slate-400">
-                      Leave this blank when the cooperative does not belong to any union.
-                    </p>
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Image URL
-                    </label>
-
-                    <Input
-                      v-model="form.imgUrl"
-                      type="url"
-                      :class="inputClass"
-                      placeholder="Enter image URL"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Main Activity
-                    </label>
-
-                    <Input
-                      v-model="form.mainActivity"
-                      :class="inputClass"
-                      placeholder="Enter main activity"
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <section class="border-t border-slate-100 pt-5">
-                <h3 class="mb-3 text-sm font-bold text-slate-800">Location Details</h3>
-
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      County
-                    </label>
-
-                    <Input
-                      v-model="form.county"
-                      :class="inputClass"
-                      placeholder="Enter county"
-                      required
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Sub County
-                    </label>
-
-                    <Input
-                      v-model="form.subCounty"
-                      :class="inputClass"
-                      placeholder="Enter sub county"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Division
-                    </label>
-
-                    <Input
-                      v-model="form.division"
-                      :class="inputClass"
-                      placeholder="Enter division"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Location
-                    </label>
-
-                    <Input
-                      v-model="form.location"
-                      :class="inputClass"
-                      placeholder="Enter location"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Sub Location
-                    </label>
-
-                    <Input
-                      v-model="form.subLocation"
-                      :class="inputClass"
-                      placeholder="Enter sub location"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Ward
-                    </label>
-
-                    <Input v-model="form.ward" :class="inputClass" placeholder="Enter ward" />
-                  </div>
-                </div>
-              </section>
-
-              <section class="border-t border-slate-100 pt-5">
-                <h3 class="mb-3 text-sm font-bold text-slate-800">Insurance Details</h3>
-
-                <label
-                  class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
-                >
-                  <input
-                    v-model="form.hasInsurance"
-                    type="checkbox"
-                    class="h-4 w-4 rounded border-slate-300 accent-green-700"
-                  />
-
-                  <span class="text-sm font-medium text-slate-700">
-                    This cooperative has insurance coverage
-                  </span>
-                </label>
-
-                <div v-if="form.hasInsurance" class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Insurance Provider
-                    </label>
-
-                    <Input
-                      v-model="form.insuranceProvider"
-                      :class="inputClass"
-                      placeholder="Enter insurance provider"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Insurance Type
-                    </label>
-
-                    <Input
-                      v-model="form.insuranceType"
-                      :class="inputClass"
-                      placeholder="Enter insurance type"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Enterprise Covered
-                    </label>
-
-                    <Input
-                      v-model="form.enterpriseCovered"
-                      :class="inputClass"
-                      placeholder="Enter enterprise covered"
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <section class="border-t border-slate-100 pt-5">
-                <h3 class="mb-3 text-sm font-bold text-slate-800">Coordinates</h3>
-
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Latitude
-                    </label>
-
-                    <Input
-                      v-model="form.latitude"
-                      :class="inputClass"
-                      placeholder="Enter latitude"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Longitude
-                    </label>
-
-                    <Input
-                      v-model="form.longitude"
-                      :class="inputClass"
-                      placeholder="Enter longitude"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Altitude
-                    </label>
-
-                    <Input
-                      v-model="form.altitude"
-                      :class="inputClass"
-                      placeholder="Enter altitude"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Precision
-                    </label>
-
-                    <Input
-                      v-model="form.precision"
-                      :class="inputClass"
-                      placeholder="Enter precision"
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <section class="border-t border-slate-100 pt-5">
-                <div class="space-y-1.5">
-                  <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Notes
-                  </label>
-
-                  <textarea
-                    v-model="form.notes"
-                    :class="textareaClass"
-                    placeholder="Enter any additional notes"
-                  />
-                </div>
-              </section>
-
-              <div class="flex justify-end gap-3 border-t border-slate-100 pt-5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  class="h-10 rounded-xl border-slate-300 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                  :disabled="isSubmitting"
-                  @click="handleClose"
-                >
-                  Cancel
-                </Button>
-
-                <Button
-                  type="submit"
-                  class="h-10 rounded-xl bg-green-700 px-5 text-sm font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  :disabled="isSubmitting"
-                >
-                  {{
-                    isSubmitting
-                      ? 'Saving...'
-                      : isEditMode
-                        ? 'Update Cooperative'
-                        : 'Create Cooperative'
-                  }}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </Transition>
+  <Dialog
+    :visible="open"
+    modal
+    dismissable-mask
+    :draggable="false"
+    :closable="false"
+    :close-on-escape="!isSubmitting"
+    class="cooperative-dialog"
+    :style="{ width: 'min(1060px, calc(100vw - 2rem))' }"
+    :pt="{
+      mask: {
+        class: 'cooperative-dialog-mask',
+      },
+    }"
+    @update:visible="handleVisibilityChange"
+  >
+    <!-- Header -->
+    <template #header>
+      <div class="flex w-full items-start justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold tracking-[-0.02em] text-heading">
+            {{ dialogTitle }}
+          </h2>
+
+          <p class="mt-1 text-sm leading-6 text-secondary-text">
+            Enter the cooperative registration, location and operational details.
+          </p>
+        </div>
+
+        <Button
+          type="button"
+          severity="secondary"
+          text
+          rounded
+          aria-label="Close modal"
+          class="modal-icon-button shrink-0"
+          :disabled="isSubmitting"
+          @click="handleClose"
+        >
+          <X class="h-5 w-5" :stroke-width="2" />
+        </Button>
       </div>
-    </Transition>
-  </Teleport>
+    </template>
+
+    <form class="space-y-6" @submit.prevent="handleSubmit">
+      <!-- Basic Information -->
+      <section>
+        <div class="mb-4 flex items-start gap-2">
+          <Building2 class="mt-0.5 h-4 w-4 shrink-0 text-primary" :stroke-width="2" />
+
+          <div>
+            <h3 class="text-sm font-bold text-heading">Basic Information</h3>
+
+            <p class="mt-1 text-xs leading-5 text-secondary-text">
+              Capture the cooperative registration and contact details.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="form-field">
+            <label for="cooperative-code" class="form-label">
+              Cooperative Code
+              <span class="text-error">*</span>
+            </label>
+
+            <InputText
+              id="cooperative-code"
+              v-model="form.code"
+              required
+              placeholder="Enter cooperative code"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field sm:col-span-2">
+            <label for="group-name" class="form-label">
+              Cooperative Name
+              <span class="text-error">*</span>
+            </label>
+
+            <InputText
+              id="group-name"
+              v-model="form.groupName"
+              required
+              placeholder="Enter cooperative name"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="mobile-phone" class="form-label">
+              Mobile Phone
+              <span class="text-error">*</span>
+            </label>
+
+            <InputText
+              id="mobile-phone"
+              v-model="form.mobilePhone"
+              type="tel"
+              required
+              placeholder="Enter mobile phone"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="kra-pin" class="form-label">
+              KRA PIN
+              <span class="text-error">*</span>
+            </label>
+
+            <InputText
+              id="kra-pin"
+              v-model="form.kraPin"
+              required
+              placeholder="Enter KRA PIN"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="incorporation-number" class="form-label">
+              Incorporation Number
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="incorporation-number"
+              v-model="form.incorporationNumber"
+              placeholder="Enter incorporation number"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="cooperative-union" class="form-label">
+              Cooperative Union
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <Select
+              id="cooperative-union"
+              v-model="cooperativeUnionIdModel"
+              :options="cooperativeUnionOptions"
+              option-label="name"
+              option-value="id"
+              filter
+              show-clear
+              :loading="isLoadingCooperativeUnions"
+              placeholder="Select cooperative union"
+              class="form-input"
+              append-to="self"
+              @filter="handleUnionFilter"
+            />
+
+            <p v-if="isCooperativeUnionError" class="text-xs font-medium text-error">
+              Failed to load cooperative unions.
+            </p>
+          </div>
+
+          <div class="form-field">
+            <label for="main-activity" class="form-label">
+              Main Activity
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="main-activity"
+              v-model="form.mainActivity"
+              placeholder="Enter main activity"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="image-url" class="form-label">
+              Image URL
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="image-url"
+              v-model="form.imgUrl"
+              type="url"
+              placeholder="Enter image URL"
+              class="form-input"
+            />
+          </div>
+        </div>
+      </section>
+
+      <Divider />
+
+      <!-- Location Details -->
+      <section>
+        <div class="mb-4 flex items-start gap-2">
+          <MapPin class="mt-0.5 h-4 w-4 shrink-0 text-primary" :stroke-width="2" />
+
+          <div>
+            <h3 class="text-sm font-bold text-heading">Location Details</h3>
+
+            <p class="mt-1 text-xs leading-5 text-secondary-text">
+              Capture the administrative location of the cooperative.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="form-field">
+            <label for="county" class="form-label">
+              County
+              <span class="text-error">*</span>
+            </label>
+
+            <InputText
+              id="county"
+              v-model="form.county"
+              required
+              placeholder="Enter county"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="sub-county" class="form-label">
+              Sub County
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="sub-county"
+              v-model="form.subCounty"
+              placeholder="Enter sub county"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="division" class="form-label">
+              Division
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="division"
+              v-model="form.division"
+              placeholder="Enter division"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="location" class="form-label">
+              Location
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="location"
+              v-model="form.location"
+              placeholder="Enter location"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="sub-location" class="form-label">
+              Sub Location
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="sub-location"
+              v-model="form.subLocation"
+              placeholder="Enter sub location"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="ward" class="form-label">
+              Ward
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText id="ward" v-model="form.ward" placeholder="Enter ward" class="form-input" />
+          </div>
+        </div>
+      </section>
+
+      <Divider />
+
+      <!-- Insurance Details -->
+      <section>
+        <div class="mb-4 flex items-start gap-2">
+          <ShieldCheck class="mt-0.5 h-4 w-4 shrink-0 text-primary" :stroke-width="2" />
+
+          <div>
+            <h3 class="text-sm font-bold text-heading">Insurance Details</h3>
+
+            <p class="mt-1 text-xs leading-5 text-secondary-text">
+              Specify whether the cooperative has an active insurance cover.
+            </p>
+          </div>
+        </div>
+
+        <div
+          class="flex items-center justify-between gap-4 rounded-lg border border-border bg-surface/30 px-4 py-3"
+        >
+          <div>
+            <p class="text-sm font-semibold text-heading">Has Insurance Cover</p>
+
+            <p class="mt-1 text-xs leading-5 text-secondary-text">
+              Enable this option to provide the insurance cover details.
+            </p>
+          </div>
+
+          <ToggleSwitch v-model="form.hasInsurance" />
+        </div>
+
+        <div v-if="form.hasInsurance" class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="form-field">
+            <label for="insurance-provider" class="form-label">
+              Insurance Provider
+              <span class="text-error">*</span>
+            </label>
+
+            <InputText
+              id="insurance-provider"
+              v-model="form.insuranceProvider"
+              required
+              placeholder="Enter insurance provider"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="insurance-type" class="form-label">
+              Insurance Type
+              <span class="text-error">*</span>
+            </label>
+
+            <InputText
+              id="insurance-type"
+              v-model="form.insuranceType"
+              required
+              placeholder="Enter insurance type"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="enterprise-covered" class="form-label">
+              Enterprise Covered
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="enterprise-covered"
+              v-model="form.enterpriseCovered"
+              placeholder="Enter enterprise covered"
+              class="form-input"
+            />
+          </div>
+        </div>
+      </section>
+
+      <Divider />
+
+      <!-- Coordinates -->
+      <section>
+        <div class="mb-4">
+          <h3 class="text-sm font-bold text-heading">Coordinates</h3>
+
+          <p class="mt-1 text-xs leading-5 text-secondary-text">
+            Capture GPS values where they are available.
+          </p>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="form-field">
+            <label for="latitude" class="form-label">
+              Latitude
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="latitude"
+              v-model="form.latitude"
+              placeholder="Latitude"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="longitude" class="form-label">
+              Longitude
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="longitude"
+              v-model="form.longitude"
+              placeholder="Longitude"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="altitude" class="form-label">
+              Altitude
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="altitude"
+              v-model="form.altitude"
+              placeholder="Altitude"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="precision" class="form-label">
+              Precision
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="precision"
+              v-model="form.precision"
+              placeholder="Precision"
+              class="form-input"
+            />
+          </div>
+        </div>
+      </section>
+
+      <Divider />
+
+      <!-- Notes -->
+      <section>
+        <div class="mb-4 flex items-start gap-2">
+          <FileText class="mt-0.5 h-4 w-4 shrink-0 text-primary" :stroke-width="2" />
+
+          <div>
+            <h3 class="text-sm font-bold text-heading">Additional Notes</h3>
+
+            <p class="mt-1 text-xs leading-5 text-secondary-text">
+              Add any additional information about the cooperative.
+            </p>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label for="notes" class="form-label">
+            Notes
+            <span class="text-muted-text">(Optional)</span>
+          </label>
+
+          <Textarea
+            id="notes"
+            v-model="form.notes"
+            rows="3"
+            auto-resize
+            placeholder="Enter additional notes"
+            class="form-input"
+          />
+        </div>
+      </section>
+    </form>
+
+    <!-- Footer -->
+    <template #footer>
+      <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button
+          type="button"
+          severity="secondary"
+          outlined
+          class="modal-secondary-button"
+          :disabled="isSubmitting"
+          @click="handleClose"
+        >
+          Cancel
+        </Button>
+
+        <Button
+          type="button"
+          class="modal-primary-button"
+          :disabled="isSubmitting"
+          @click="handleSubmit"
+        >
+          <LoaderCircle v-if="isSubmitting" class="mr-2 h-4 w-4 animate-spin" :stroke-width="2" />
+
+          <Save v-else class="mr-2 h-4 w-4" :stroke-width="2" />
+
+          {{ isSubmitting ? 'Saving...' : submitLabel }}
+        </Button>
+      </div>
+    </template>
+  </Dialog>
 </template>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
+/*
+  PrimeVue renders the dialog outside the component DOM using teleport.
+  Global selectors ensure that the theme styles reach the rendered modal.
+*/
+
+:global(.cooperative-dialog.p-dialog) {
+  overflow: hidden;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 0.875rem !important;
+  background-color: var(--color-card) !important;
+  color: var(--color-heading) !important;
+  box-shadow: 0 20px 45px rgb(0 0 0 / 18%) !important;
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+:global(.cooperative-dialog .p-dialog-header),
+:global(.cooperative-dialog .p-dialog-content),
+:global(.cooperative-dialog .p-dialog-footer) {
+  background-color: var(--color-card) !important;
+  color: var(--color-heading) !important;
 }
 
-.scale-enter-active,
-.scale-leave-active {
-  transition:
-    opacity 0.25s ease,
-    transform 0.25s ease;
+:global(.cooperative-dialog .p-dialog-header) {
+  padding: 1.25rem 1.5rem 1rem !important;
+  border-bottom: 1px solid var(--color-border) !important;
 }
 
-.scale-enter-from,
-.scale-leave-to {
-  opacity: 0;
-  transform: scale(0.97);
+:global(.cooperative-dialog .p-dialog-content) {
+  max-height: min(72vh, 780px);
+  overflow-y: auto;
+  padding: 1.5rem !important;
+}
+
+:global(.cooperative-dialog .p-dialog-footer) {
+  padding: 1rem 1.5rem !important;
+  border-top: 1px solid var(--color-border) !important;
+}
+
+:global(.cooperative-dialog .p-divider.p-divider-horizontal::before) {
+  border-top-color: var(--color-border) !important;
+}
+
+:global(.cooperative-dialog-mask) {
+  background-color: rgb(0 0 0 / 52%) !important;
+  backdrop-filter: blur(2px);
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.form-label {
+  color: var(--color-secondary-text);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.form-input {
+  width: 100%;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 0.5rem !important;
+  background-color: var(--color-card) !important;
+  color: var(--color-heading) !important;
+  font-size: 0.875rem !important;
+  box-shadow: none !important;
+}
+
+.form-input::placeholder {
+  color: var(--color-muted-text) !important;
+}
+
+.form-input:enabled:hover {
+  border-color: var(--color-primary) !important;
+}
+
+.form-input:enabled:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent) !important;
+}
+
+:global(.cooperative-dialog .p-inputtext) {
+  padding: 0.7rem 0.8rem !important;
+}
+
+:global(.cooperative-dialog textarea.p-inputtextarea) {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+/*
+  PrimeVue Select.
+*/
+:global(.cooperative-dialog .p-select.form-input) {
+  display: flex;
+  align-items: center;
+  padding: 0 !important;
+}
+
+:global(.cooperative-dialog .p-select.form-input:hover) {
+  border-color: var(--color-primary) !important;
+}
+
+:global(.cooperative-dialog .p-select.form-input.p-focus) {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent) !important;
+}
+
+:global(.cooperative-dialog .p-select-label) {
+  padding: 0.7rem 0.8rem !important;
+  color: var(--color-heading) !important;
+  font-size: 0.875rem !important;
+}
+
+:global(.cooperative-dialog .p-select-label.p-placeholder) {
+  color: var(--color-muted-text) !important;
+}
+
+:global(.cooperative-dialog .p-select-dropdown),
+:global(.cooperative-dialog .p-select-clear-icon) {
+  color: var(--color-secondary-text) !important;
+}
+
+/*
+  PrimeVue toggle switch.
+*/
+:global(.cooperative-dialog .p-toggleswitch.p-toggleswitch-checked .p-toggleswitch-slider) {
+  background-color: var(--color-primary) !important;
+}
+
+:global(.cooperative-dialog .p-toggleswitch:not(.p-disabled):hover .p-toggleswitch-slider) {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent) !important;
+}
+
+/*
+  Modal buttons.
+*/
+:global(.cooperative-dialog .modal-icon-button.p-button) {
+  color: var(--color-secondary-text) !important;
+}
+
+:global(.cooperative-dialog .modal-icon-button.p-button:hover) {
+  background-color: color-mix(in srgb, var(--color-primary) 10%, transparent) !important;
+  color: var(--color-primary) !important;
+}
+
+:global(.cooperative-dialog .modal-secondary-button.p-button) {
+  border-color: var(--color-border) !important;
+  background-color: var(--color-card) !important;
+  color: var(--color-secondary-text) !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+}
+
+:global(.cooperative-dialog .modal-secondary-button.p-button:hover) {
+  border-color: var(--color-primary) !important;
+  background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-card)) !important;
+  color: var(--color-primary) !important;
+}
+
+:global(.cooperative-dialog .modal-primary-button.p-button) {
+  border-color: var(--color-primary) !important;
+  background-color: var(--color-primary) !important;
+  color: var(--color-primary-foreground) !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+}
+
+:global(.cooperative-dialog .modal-primary-button.p-button:hover) {
+  border-color: var(--color-primary-hover) !important;
+  background-color: var(--color-primary-hover) !important;
 }
 </style>

@@ -1,17 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Pencil } from 'lucide-vue-next';
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import Column from 'primevue/column';
+
+import EntityTable from '@/components/shared/EntityTable.vue';
+import { Button } from '@/components/ui/button';
 
 import CooperativeModal from './CooperativeModal.vue';
 
@@ -72,13 +67,17 @@ const clearSearch = () => {
 };
 
 const nextPage = () => {
-  if (!hasNextPage.value) return;
+  if (!hasNextPage.value) {
+    return;
+  }
 
   page.value += 1;
 };
 
 const previousPage = () => {
-  if (!hasPreviousPage.value) return;
+  if (!hasPreviousPage.value) {
+    return;
+  }
 
   page.value -= 1;
 };
@@ -111,8 +110,18 @@ const handleSubmitCooperative = async (payload: CooperativePayload) => {
   closeModal();
 };
 
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString('en-KE', {
+const formatDate = (date?: string) => {
+  if (!date) {
+    return 'Not available';
+  }
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return 'Not available';
+  }
+
+  return parsedDate.toLocaleDateString('en-KE', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -130,245 +139,145 @@ const getInitials = (groupName: string) => {
 </script>
 
 <template>
-  <section class="min-h-screen bg-slate-50 px-3 py-4 sm:px-5 md:px-7 lg:px-8">
-    <div class="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Cooperatives</h1>
+  <EntityTable
+    v-model:search-value="searchInput"
+    title="Cooperatives"
+    description="Manage registered cooperatives and their details."
+    search-placeholder="Search cooperatives"
+    create-label="Create Cooperative"
+    item-label="cooperative(s)"
+    :rows="cooperatives"
+    :total-items="totalItems"
+    :current-page="currentPage"
+    :total-pages="totalPages"
+    :has-previous-page="hasPreviousPage"
+    :has-next-page="hasNextPage"
+    :is-loading="isLoading"
+    :is-error="isError"
+    :error-message="errorMessage"
+    data-key="id"
+    wide
+    @search="handleSearch"
+    @clear="clearSearch"
+    @refresh="() => refetch()"
+    @create="openCreateModal"
+    @previous="previousPage"
+    @next="nextPage"
+  >
+    <template #columns>
+      <!-- Cooperative Information -->
+      <Column header="Cooperative Information" style="width: 28%">
+        <template #body="{ data: cooperative }">
+          <div class="flex items-center gap-3">
+            <div
+              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-xs font-bold text-primary"
+            >
+              {{ getInitials(cooperative.groupName) }}
+            </div>
 
-        <p class="mt-1 text-xs text-slate-500 sm:text-sm">
-          Manage registered cooperatives and their details.
-        </p>
-      </div>
+            <div class="min-w-0">
+              <p class="truncate text-sm font-semibold text-heading">
+                {{ cooperative.groupName }}
+              </p>
+            </div>
+          </div>
+        </template>
+      </Column>
 
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <form class="flex w-full gap-2 sm:w-auto" @submit.prevent="handleSearch">
-          <Input
-            v-model="searchInput"
-            type="text"
-            placeholder="Search cooperatives"
-            class="h-10 w-full rounded-md border-slate-300 bg-white text-xs shadow-sm focus-visible:ring-green-600 sm:w-72 sm:text-sm md:w-80"
-          />
+      <!-- Code -->
+      <Column header="Code">
+        <template #body="{ data: cooperative }">
+          <span class="text-sm font-medium text-secondary-text">
+            {{ cooperative.code || 'Not provided' }}
+          </span>
+        </template>
+      </Column>
 
-          <Button
-            type="submit"
-            variant="outline"
-            class="h-10 cursor-pointer px-4 text-xs font-semibold transition-all hover:bg-slate-100 active:scale-95"
+      <!-- County -->
+      <Column header="County">
+        <template #body="{ data: cooperative }">
+          <span class="text-sm font-medium text-secondary-text">
+            {{ cooperative.county || 'Not specified' }}
+          </span>
+        </template>
+      </Column>
+
+      <!-- Main Activity -->
+      <Column header="Main Activity">
+        <template #body="{ data: cooperative }">
+          <span class="text-sm font-medium text-secondary-text">
+            {{ cooperative.mainActivity || 'Not specified' }}
+          </span>
+        </template>
+      </Column>
+
+      <!-- Insurance -->
+      <Column header="Insurance">
+        <template #body="{ data: cooperative }">
+          <span
+            v-if="cooperative.hasInsurance"
+            class="inline-flex rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success ring-1 ring-success/20"
           >
-            Search
-          </Button>
+            Insured
+          </span>
 
-          <Button
-            v-if="appliedSearch"
-            type="button"
-            variant="outline"
-            class="h-10 cursor-pointer px-4 text-xs font-semibold transition-all hover:bg-slate-100 active:scale-95"
-            @click="clearSearch"
+          <span
+            v-else
+            class="inline-flex rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-secondary-text ring-1 ring-border"
           >
-            Clear
-          </Button>
-        </form>
+            Not insured
+          </span>
+        </template>
+      </Column>
 
-        <Button
-          type="button"
-          class="h-10 cursor-pointer rounded-md bg-green-700 px-5 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm transition-all hover:bg-green-800 hover:shadow-lg active:scale-95 sm:text-xs"
-          title="Create a new cooperative"
-          @click="openCreateModal"
-        >
-          Create Cooperative
-        </Button>
-      </div>
-    </div>
-
-    <div class="mb-3 flex items-center justify-between border-b border-slate-200 pb-3">
-      <p class="text-xs font-medium text-slate-500 sm:text-sm">
-        Total: {{ totalItems }} cooperative(s)
-      </p>
-
-      <Button
-        type="button"
-        variant="outline"
-        class="h-9 cursor-pointer px-4 text-xs font-semibold transition-all hover:bg-slate-100 active:scale-95"
-        title="Refresh cooperatives"
-        @click="refetch"
-      >
-        Refresh
-      </Button>
-    </div>
-
-    <div
-      v-if="isLoading"
-      class="flex min-h-[250px] items-center justify-center bg-white text-xs text-slate-500 shadow-sm sm:text-sm"
-    >
-      Loading cooperatives...
-    </div>
-
-    <div
-      v-else-if="isError"
-      class="rounded-md border border-red-200 bg-red-50 p-4 text-xs text-red-700 sm:text-sm"
-    >
-      {{ errorMessage }}
-    </div>
-
-    <div v-else class="overflow-x-auto bg-white shadow-sm">
-      <Table class="min-w-[1300px]">
-        <TableHeader>
-          <TableRow class="border-b border-slate-100 bg-slate-50 hover:bg-slate-50">
-            <TableHead class="w-[28%] px-4 py-4 text-xs font-semibold text-slate-400">
-              Cooperative Information
-            </TableHead>
-
-            <TableHead class="px-4 py-4 text-xs font-semibold text-slate-400"> Code </TableHead>
-
-            <TableHead class="px-4 py-4 text-xs font-semibold text-slate-400"> County </TableHead>
-
-            <TableHead class="px-4 py-4 text-xs font-semibold text-slate-400">
-              Main Activity
-            </TableHead>
-
-            <TableHead class="px-4 py-4 text-xs font-semibold text-slate-400">
-              Insurance
-            </TableHead>
-
-            <TableHead class="px-4 py-4 text-xs font-semibold text-slate-400"> KRA PIN </TableHead>
-
-            <TableHead class="px-4 py-4 text-xs font-semibold text-slate-400">
-              Created At
-            </TableHead>
-
-            <TableHead class="px-4 py-4 text-right text-xs font-semibold text-slate-400">
-              Action
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-
-        <TableBody>
-          <TableRow
-            v-for="cooperative in cooperatives"
-            :key="cooperative.id"
-            class="cursor-pointer border-b border-slate-100 bg-white transition-colors duration-200 hover:bg-green-50/40"
+      <!-- KRA PIN -->
+      <Column header="KRA PIN">
+        <template #body="{ data: cooperative }">
+          <span
+            class="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary ring-1 ring-primary/20"
           >
-            <TableCell class="px-4 py-4">
-              <div class="flex items-center gap-3">
-                <div
-                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-green-100 bg-green-50 text-xs font-bold text-green-700 shadow-sm"
-                >
-                  {{ getInitials(cooperative.groupName) }}
-                </div>
+            {{ cooperative.kraPin || 'Not provided' }}
+          </span>
+        </template>
+      </Column>
 
-                <div>
-                  <p class="text-sm font-semibold text-slate-800">
-                    {{ cooperative.groupName }}
-                  </p>
+      <!-- Created Date -->
+      <Column header="Created At">
+        <template #body="{ data: cooperative }">
+          <span class="text-sm font-medium text-secondary-text">
+            {{ formatDate(cooperative.createdAt) }}
+          </span>
+        </template>
+      </Column>
 
-                  <p class="mt-0.5 text-xs font-medium text-slate-400">
-                    {{ cooperative.mobilePhone }}
-                  </p>
+      <!-- Actions -->
+      <Column header="Action" style="width: 110px">
+        <template #body="{ data: cooperative }">
+          <div class="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              class="h-8 cursor-pointer gap-1 rounded-lg border-border bg-card px-3 text-xs font-semibold text-secondary-text shadow-none transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary"
+              title="Edit cooperative"
+              @click.stop="openUpdateModal(cooperative)"
+            >
+              <Pencil class="h-3.5 w-3.5" :stroke-width="2" />
 
-                  <p class="mt-1 text-xs text-slate-500">
-                    {{ cooperative.notes || 'No additional notes' }}
-                  </p>
-                </div>
-              </div>
-            </TableCell>
+              Edit
+            </Button>
+          </div>
+        </template>
+      </Column>
+    </template>
 
-            <TableCell class="px-4 py-4 text-sm font-medium text-slate-600">
-              {{ cooperative.code }}
-            </TableCell>
+    <template #empty> No cooperatives found. </template>
+  </EntityTable>
 
-            <TableCell class="px-4 py-4 text-sm font-medium text-slate-600">
-              {{ cooperative.county }}
-            </TableCell>
-
-            <TableCell class="px-4 py-4 text-sm font-medium text-slate-600">
-              {{ cooperative.mainActivity || 'Not specified' }}
-            </TableCell>
-
-            <TableCell class="px-4 py-4">
-              <span
-                v-if="cooperative.hasInsurance"
-                class="inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-100"
-              >
-                Insured
-              </span>
-
-              <span
-                v-else
-                class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200"
-              >
-                Not insured
-              </span>
-            </TableCell>
-
-            <TableCell class="px-4 py-4">
-              <span
-                class="inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-100"
-              >
-                {{ cooperative.kraPin || 'Not provided' }}
-              </span>
-            </TableCell>
-
-            <TableCell class="px-4 py-4 text-sm font-medium text-slate-600">
-              {{ formatDate(cooperative.createdAt) }}
-            </TableCell>
-
-            <TableCell class="px-4 py-4 text-right">
-              <Button
-                type="button"
-                variant="outline"
-                class="h-8 cursor-pointer px-3 text-xs font-semibold transition-all hover:border-green-700 hover:bg-green-50 hover:text-green-700 active:scale-95"
-                title="Edit cooperative"
-                @click.stop="openUpdateModal(cooperative)"
-              >
-                Edit
-              </Button>
-            </TableCell>
-          </TableRow>
-
-          <TableRow v-if="cooperatives.length === 0">
-            <TableCell :colspan="8" class="h-40 text-center text-xs text-slate-500 sm:text-sm">
-              No cooperatives found.
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
-
-      <div
-        class="flex flex-col gap-3 border-t border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
-      >
-        <p class="text-xs text-slate-500">Page {{ currentPage }} of {{ totalPages }}</p>
-
-        <div class="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            class="h-9 cursor-pointer px-4 text-xs transition-all hover:bg-slate-100 active:scale-95"
-            :disabled="!hasPreviousPage"
-            title="Previous page"
-            @click="previousPage"
-          >
-            Previous
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            class="h-9 cursor-pointer px-4 text-xs transition-all hover:bg-slate-100 active:scale-95"
-            :disabled="!hasNextPage"
-            title="Next page"
-            @click="nextPage"
-          >
-            Next
-          </Button>
-        </div>
-      </div>
-    </div>
-
-    <CooperativeModal
-      :open="isModalOpen"
-      :cooperative="selectedCooperative"
-      :is-submitting="isSubmitting"
-      @close="closeModal"
-      @submit="handleSubmitCooperative"
-    />
-  </section>
+  <CooperativeModal
+    :open="isModalOpen"
+    :cooperative="selectedCooperative"
+    :is-submitting="isSubmitting"
+    @close="closeModal"
+    @submit="handleSubmitCooperative"
+  />
 </template>

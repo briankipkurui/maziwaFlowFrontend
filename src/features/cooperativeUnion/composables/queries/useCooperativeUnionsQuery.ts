@@ -5,12 +5,10 @@ import { cooperativeUnionQueryKeys } from '../queryKeys/cooperativeUnionQueryKey
 import type { CooperativeUnionListParams } from '../../types/cooperativeUnion';
 import { cooperativeUnionService } from '../../services/cooperativeUnionService';
 // import type { CooperativeUnionListParams } from '../types/cooperativeUnion';
-// 
-export const useCooperativeUnionsQuery = (
-    params: Ref<CooperativeUnionListParams>,
-) => {
-    return useQuery({
-        queryKey: computed(() => cooperativeUnionQueryKeys.list(params.value)),
-        queryFn: () => cooperativeUnionService.list(params.value),
-    });
+//
+export const useCooperativeUnionsQuery = (params: Ref<CooperativeUnionListParams>) => {
+  return useQuery({
+    queryKey: computed(() => cooperativeUnionQueryKeys.list(params.value)),
+    queryFn: () => cooperativeUnionService.list(params.value),
+  });
 };

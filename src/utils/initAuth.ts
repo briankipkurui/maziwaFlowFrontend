@@ -1,14 +1,30 @@
-import { useAuthStore } from '@/stores/auth';
+import { authService } from '@/features/auth/services/auth.service';
+import { useAuthFeatureStore } from '@/features/auth/stores/authStore';
 
-/**
- * Initialize auth state from localStorage.
- * The store auto-hydrates on creation, so we just verify the state is valid.
- */
-export function initializeAuth(): void {
-  const authStore = useAuthStore();
+let refreshPromise: Promise<boolean> | null = null;
 
-  // If we have user but no tokens, clear the invalid state
-  if (authStore.user && !authStore.accessToken) {
-    authStore.clearAuth();
+export const initializeAuth = async (): Promise<boolean> => {
+  const authStore = useAuthFeatureStore();
+
+  if (authStore.accessToken) {
+    return true;
   }
-}
+
+  if (!refreshPromise) {
+    refreshPromise = authService
+      .refresh()
+      .then((data) => {
+        authStore.setAuth(data);
+        return true;
+      })
+      .catch(() => {
+        authStore.clearAuth();
+        return false;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+};

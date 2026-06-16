@@ -1,0 +1,64 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - region "Notifications alt+T":
+      - list
+    - main [ref=e34]:
+      - complementary [ref=e35]:
+        - generic [ref=e36]:
+          - generic [ref=e49]:
+            - heading "MaziwaFlow" [level=1] [ref=e50]
+            - paragraph [ref=e51]: Platform Management
+          - paragraph [ref=e53]: System Admin
+          - navigation [ref=e54]:
+            - generic [ref=e55]:
+              - link "📊 Dashboard" [ref=e57] [cursor=pointer]:
+                - /url: /admin
+                - generic [ref=e58]:
+                  - generic [ref=e59]: 📊
+                  - generic [ref=e60]: Dashboard
+              - generic [ref=e61]:
+                - button "🏢 Cooperative Unions ▼" [active] [ref=e62]:
+                  - generic [ref=e63]:
+                    - generic [ref=e64]: 🏢
+                    - generic [ref=e65]: Cooperative Unions
+                  - generic [ref=e66]: ▼
+                - link "view" [ref=e107] [cursor=pointer]:
+                  - /url: /admin/cooperative-unions
+              - button "🏢 Cooperatives ▼" [ref=e68]:
+                - generic [ref=e69]:
+                  - generic [ref=e70]: 🏢
+                  - generic [ref=e71]: Cooperatives
+                - generic [ref=e72]: ▼
+              - button "👥 Users ▼" [ref=e74]:
+                - generic [ref=e75]:
+                  - generic [ref=e76]: 👥
+                  - generic [ref=e77]: Users
+                - generic [ref=e78]: ▼
+              - button "📄 Reports ▼" [ref=e80]:
+                - generic [ref=e81]:
+                  - generic [ref=e82]: 📄
+                  - generic [ref=e83]: Reports
+                - generic [ref=e84]: ▼
+              - button "⚙️ Settings ▼" [ref=e86]:
+                - generic [ref=e87]:
+                  - generic [ref=e88]: ⚙️
+                  - generic [ref=e89]: Settings
+                - generic [ref=e90]: ▼
+          - button "↩ Logout" [ref=e92]:
+            - generic [ref=e93]: ↩
+            - generic [ref=e94]: Logout
+      - generic [ref=e95]:
+        - button "☰" [ref=e96]:
+          - generic [ref=e97]: ☰
+        - generic [ref=e98]:
+          - button "📣" [ref=e99]
+          - button "?" [ref=e100]
+          - button "🔔 1" [ref=e101]:
+            - text: 🔔
+            - generic [ref=e102]: "1"
+          - button "BM" [ref=e103]
+  - generic [ref=e22]:
+    - generic "Toggle devtools panel" [ref=e23] [cursor=pointer]:
+      - img [ref=e24]
+    - generic "Toggle Component Inspector" [ref=e29] [cursor=pointer]:
+      - img [ref=e30]
