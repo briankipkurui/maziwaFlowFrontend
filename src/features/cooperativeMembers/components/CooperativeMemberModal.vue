@@ -1,8 +1,23 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import {
+  BadgeCheck,
+  IdCard,
+  LoaderCircle,
+  MapPin,
+  Save,
+  Settings2,
+  UserRound,
+  X,
+} from 'lucide-vue-next';
+
+import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
+import Divider from 'primevue/divider';
+import InputText from 'primevue/inputtext';
+import Select from 'primevue/select';
+import ToggleSwitch from 'primevue/toggleswitch';
 
 import type {
   CooperativeMember,
@@ -10,11 +25,17 @@ import type {
   CooperativeMemberStatus,
 } from '../types/cooperativeMember';
 
-const props = defineProps<{
-  open: boolean;
-  member?: CooperativeMember | null;
-  isSubmitting?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    member?: CooperativeMember | null;
+    isSubmitting?: boolean;
+  }>(),
+  {
+    member: null,
+    isSubmitting: false,
+  },
+);
 
 const emit = defineEmits<{
   close: [];
@@ -23,11 +44,29 @@ const emit = defineEmits<{
 
 const isEditMode = computed(() => Boolean(props.member));
 
-const inputClass =
-  'h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-800 shadow-sm transition placeholder:text-slate-400 focus:border-green-600 focus:bg-white focus:ring-2 focus:ring-green-100';
+const dialogTitle = computed(() =>
+  isEditMode.value ? 'Update Cooperative Member' : 'Create Cooperative Member',
+);
 
-const selectClass =
-  'h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-800 shadow-sm outline-none transition focus:border-green-600 focus:bg-white focus:ring-2 focus:ring-green-100';
+const submitLabel = computed(() => (isEditMode.value ? 'Update Member' : 'Create Member'));
+
+const statusOptions: Array<{
+  label: string;
+  value: CooperativeMemberStatus;
+}> = [
+  {
+    label: 'Active',
+    value: 'ACTIVE',
+  },
+  {
+    label: 'Inactive',
+    value: 'INACTIVE',
+  },
+  {
+    label: 'Suspended',
+    value: 'SUSPENDED',
+  },
+];
 
 const createEmptyForm = (): CooperativeMemberPayload => ({
   memberNumber: '',
@@ -63,7 +102,9 @@ const resetForm = () => {
 const populateForm = (member?: CooperativeMember | null) => {
   resetForm();
 
-  if (!member) return;
+  if (!member) {
+    return;
+  }
 
   Object.assign(form, {
     memberNumber: member.memberNumber ?? '',
@@ -96,7 +137,9 @@ const populateForm = (member?: CooperativeMember | null) => {
 watch(
   () => props.open,
   (open) => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
 
     populateForm(props.member);
   },
@@ -105,14 +148,26 @@ watch(
 watch(
   () => props.member,
   (member) => {
-    if (!props.open) return;
+    if (!props.open) {
+      return;
+    }
 
     populateForm(member);
   },
 );
 
 const handleClose = () => {
+  if (props.isSubmitting) {
+    return;
+  }
+
   emit('close');
+};
+
+const handleVisibilityChange = (visible: boolean) => {
+  if (!visible) {
+    handleClose();
+  }
 };
 
 const handleSubmit = () => {
@@ -144,347 +199,617 @@ const handleSubmit = () => {
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="fade">
-      <div
-        v-if="open"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6 backdrop-blur-sm"
-        @click.self="handleClose"
-      >
-        <Transition name="scale">
+  <Dialog
+    :visible="open"
+    modal
+    dismissable-mask
+    :draggable="false"
+    :closable="false"
+    :close-on-escape="!isSubmitting"
+    class="cooperative-member-dialog"
+    :style="{ width: 'min(1060px, calc(100vw - 2rem))' }"
+    :pt="{
+      mask: {
+        class: 'cooperative-member-dialog-mask',
+      },
+    }"
+    @update:visible="handleVisibilityChange"
+  >
+    <!-- Header -->
+    <template #header>
+      <div class="flex w-full items-start justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold tracking-[-0.02em] text-heading">
+            {{ dialogTitle }}
+          </h2>
+
+          <p class="mt-1 text-sm leading-6 text-secondary-text">
+            Enter the member registration, contact and location details.
+          </p>
+        </div>
+
+        <Button
+          type="button"
+          severity="secondary"
+          text
+          rounded
+          aria-label="Close modal"
+          class="modal-icon-button shrink-0"
+          :disabled="isSubmitting"
+          @click="handleClose"
+        >
+          <X class="h-5 w-5" :stroke-width="2" />
+        </Button>
+      </div>
+    </template>
+
+    <form id="cooperative-member-form" class="space-y-6" @submit.prevent="handleSubmit">
+      <!-- Member Registration -->
+      <section>
+        <div class="mb-4 flex items-start gap-2">
+          <IdCard class="mt-0.5 h-4 w-4 shrink-0 text-primary" :stroke-width="2" />
+
+          <div>
+            <h3 class="text-sm font-bold text-heading">Member Registration</h3>
+
+            <p class="mt-1 text-xs leading-5 text-secondary-text">
+              Capture the member registration, role and account status.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="form-field">
+            <label for="member-number" class="form-label">
+              Member Number
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="member-number"
+              v-model="form.memberNumber"
+              placeholder="Enter member number"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="identification-number" class="form-label">
+              Identification Number
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="identification-number"
+              v-model="form.identificationNumber"
+              placeholder="Enter ID or passport number"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="joined-at" class="form-label">
+              Date Joined
+              <span class="text-error">*</span>
+            </label>
+
+            <InputText
+              id="joined-at"
+              v-model="form.joinedAt"
+              type="date"
+              required
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="member-status" class="form-label">
+              Member Status
+              <span class="text-error">*</span>
+            </label>
+
+            <Select
+              id="member-status"
+              v-model="form.status"
+              :options="statusOptions"
+              option-label="label"
+              option-value="value"
+              placeholder="Select member status"
+              class="form-input"
+              append-to="self"
+            />
+          </div>
+
+          <div class="form-field sm:col-span-2">
+            <label for="role-id" class="form-label">
+              Role ID
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="role-id"
+              v-model="form.roleId"
+              placeholder="Enter role ID when assigning a role"
+              class="form-input"
+            />
+          </div>
+        </div>
+      </section>
+
+      <Divider />
+
+      <!-- Personal Details -->
+      <section>
+        <div class="mb-4 flex items-start gap-2">
+          <UserRound class="mt-0.5 h-4 w-4 shrink-0 text-primary" :stroke-width="2" />
+
+          <div>
+            <h3 class="text-sm font-bold text-heading">Personal Details</h3>
+
+            <p class="mt-1 text-xs leading-5 text-secondary-text">
+              Capture the member name and contact information.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="form-field">
+            <label for="first-name" class="form-label">
+              First Name
+              <span class="text-error">*</span>
+            </label>
+
+            <InputText
+              id="first-name"
+              v-model="form.profile.firstName"
+              required
+              placeholder="Enter first name"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="middle-name" class="form-label">
+              Middle Name
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="middle-name"
+              v-model="form.profile.middleName"
+              placeholder="Enter middle name"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="last-name" class="form-label">
+              Last Name
+              <span class="text-error">*</span>
+            </label>
+
+            <InputText
+              id="last-name"
+              v-model="form.profile.lastName"
+              required
+              placeholder="Enter last name"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="mobile-number" class="form-label">
+              Mobile Number
+              <span class="text-error">*</span>
+            </label>
+
+            <InputText
+              id="mobile-number"
+              v-model="form.profile.mobileNumber"
+              type="tel"
+              required
+              placeholder="Enter mobile number"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="other-number" class="form-label">
+              Other Number
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="other-number"
+              v-model="form.profile.otherNumber"
+              type="tel"
+              placeholder="Enter alternative number"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="email-address" class="form-label">
+              Email Address
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="email-address"
+              v-model="form.profile.email"
+              type="email"
+              placeholder="Enter email address"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="kra-pin" class="form-label">
+              KRA PIN
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="kra-pin"
+              v-model="form.profile.kraPin"
+              placeholder="Enter KRA PIN"
+              class="form-input"
+            />
+          </div>
+        </div>
+      </section>
+
+      <Divider />
+
+      <!-- Location Details -->
+      <section>
+        <div class="mb-4 flex items-start gap-2">
+          <MapPin class="mt-0.5 h-4 w-4 shrink-0 text-primary" :stroke-width="2" />
+
+          <div>
+            <h3 class="text-sm font-bold text-heading">Location Details</h3>
+
+            <p class="mt-1 text-xs leading-5 text-secondary-text">
+              Capture the administrative location of the cooperative member.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="form-field">
+            <label for="county" class="form-label">
+              County
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="county"
+              v-model="form.profile.county"
+              placeholder="Enter county"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="sub-county" class="form-label">
+              Sub County
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="sub-county"
+              v-model="form.profile.subCounty"
+              placeholder="Enter sub county"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="division" class="form-label">
+              Division
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="division"
+              v-model="form.profile.division"
+              placeholder="Enter division"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="location" class="form-label">
+              Location
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="location"
+              v-model="form.profile.location"
+              placeholder="Enter location"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="sub-location" class="form-label">
+              Sub Location
+              <span class="text-muted-text">(Optional)</span>
+            </label>
+
+            <InputText
+              id="sub-location"
+              v-model="form.profile.subLocation"
+              placeholder="Enter sub location"
+              class="form-input"
+            />
+          </div>
+        </div>
+      </section>
+
+      <Divider />
+
+      <!-- Account Settings -->
+      <section>
+        <div class="mb-4 flex items-start gap-2">
+          <Settings2 class="mt-0.5 h-4 w-4 shrink-0 text-primary" :stroke-width="2" />
+
+          <div>
+            <h3 class="text-sm font-bold text-heading">Account Settings</h3>
+
+            <p class="mt-1 text-xs leading-5 text-secondary-text">
+              Control whether the member account is active and verified.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
           <div
-            v-if="open"
-            class="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
+            class="flex items-center justify-between gap-4 rounded-lg border border-border bg-surface/30 px-4 py-3"
           >
-            <div class="mb-6 flex items-start justify-between border-b border-slate-100 pb-4">
-              <div>
-                <h2 class="text-xl font-bold text-slate-900">
-                  {{ isEditMode ? 'Update Cooperative Member' : 'Create Cooperative Member' }}
-                </h2>
+            <div>
+              <p class="text-sm font-semibold text-heading">Active Account</p>
 
-                <p class="mt-1 text-sm text-slate-500">
-                  Enter the member's registration, contact and location details.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                class="rounded-full px-3 py-1 text-xl font-semibold text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                aria-label="Close modal"
-                @click="handleClose"
-              >
-                ×
-              </button>
+              <p class="mt-1 text-xs leading-5 text-secondary-text">
+                Allow the member to use their cooperative account.
+              </p>
             </div>
 
-            <form class="grid gap-6" @submit.prevent="handleSubmit">
-              <section>
-                <h3 class="mb-3 text-sm font-bold text-slate-800">Member Registration</h3>
-
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Member Number
-                    </label>
-
-                    <Input
-                      v-model="form.memberNumber"
-                      :class="inputClass"
-                      placeholder="Enter member number"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Identification Number
-                    </label>
-
-                    <Input
-                      v-model="form.identificationNumber"
-                      :class="inputClass"
-                      placeholder="Enter ID or passport number"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Date Joined
-                    </label>
-
-                    <Input v-model="form.joinedAt" type="date" :class="inputClass" required />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Member Status
-                    </label>
-
-                    <select v-model="form.status" :class="selectClass">
-                      <option value="ACTIVE">Active</option>
-                      <option value="INACTIVE">Inactive</option>
-                      <option value="SUSPENDED">Suspended</option>
-                    </select>
-                  </div>
-
-                  <div class="space-y-1.5 sm:col-span-2">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Role ID
-                      <span class="normal-case tracking-normal text-slate-400"> (Optional) </span>
-                    </label>
-
-                    <Input
-                      v-model="form.roleId"
-                      :class="inputClass"
-                      placeholder="Enter role ID when assigning a role"
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <section class="border-t border-slate-100 pt-5">
-                <h3 class="mb-3 text-sm font-bold text-slate-800">Personal Details</h3>
-
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      First Name
-                    </label>
-
-                    <Input
-                      v-model="form.profile.firstName"
-                      :class="inputClass"
-                      placeholder="Enter first name"
-                      required
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Middle Name
-                    </label>
-
-                    <Input
-                      v-model="form.profile.middleName"
-                      :class="inputClass"
-                      placeholder="Enter middle name"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Last Name
-                    </label>
-
-                    <Input
-                      v-model="form.profile.lastName"
-                      :class="inputClass"
-                      placeholder="Enter last name"
-                      required
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Mobile Number
-                    </label>
-
-                    <Input
-                      v-model="form.profile.mobileNumber"
-                      type="tel"
-                      :class="inputClass"
-                      placeholder="Enter mobile number"
-                      required
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Other Number
-                    </label>
-
-                    <Input
-                      v-model="form.profile.otherNumber"
-                      type="tel"
-                      :class="inputClass"
-                      placeholder="Enter alternative number"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Email Address
-                    </label>
-
-                    <Input
-                      v-model="form.profile.email"
-                      type="email"
-                      :class="inputClass"
-                      placeholder="Enter email address"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      KRA PIN
-                    </label>
-
-                    <Input
-                      v-model="form.profile.kraPin"
-                      :class="inputClass"
-                      placeholder="Enter KRA PIN"
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <section class="border-t border-slate-100 pt-5">
-                <h3 class="mb-3 text-sm font-bold text-slate-800">Location Details</h3>
-
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      County
-                    </label>
-
-                    <Input
-                      v-model="form.profile.county"
-                      :class="inputClass"
-                      placeholder="Enter county"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Sub County
-                    </label>
-
-                    <Input
-                      v-model="form.profile.subCounty"
-                      :class="inputClass"
-                      placeholder="Enter sub county"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Division
-                    </label>
-
-                    <Input
-                      v-model="form.profile.division"
-                      :class="inputClass"
-                      placeholder="Enter division"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Location
-                    </label>
-
-                    <Input
-                      v-model="form.profile.location"
-                      :class="inputClass"
-                      placeholder="Enter location"
-                    />
-                  </div>
-
-                  <div class="space-y-1.5">
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Sub Location
-                    </label>
-
-                    <Input
-                      v-model="form.profile.subLocation"
-                      :class="inputClass"
-                      placeholder="Enter sub location"
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <section class="border-t border-slate-100 pt-5">
-                <h3 class="mb-3 text-sm font-bold text-slate-800">Account Settings</h3>
-
-                <div class="grid gap-3 sm:grid-cols-2">
-                  <label
-                    class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
-                  >
-                    <input
-                      v-model="form.isActive"
-                      type="checkbox"
-                      class="h-4 w-4 rounded border-slate-300 accent-green-700"
-                    />
-
-                    <span class="text-sm font-medium text-slate-700">
-                      Member account is active
-                    </span>
-                  </label>
-
-                  <label
-                    class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
-                  >
-                    <input
-                      v-model="form.isVerified"
-                      type="checkbox"
-                      class="h-4 w-4 rounded border-slate-300 accent-green-700"
-                    />
-
-                    <span class="text-sm font-medium text-slate-700">
-                      Member details are verified
-                    </span>
-                  </label>
-                </div>
-              </section>
-
-              <div class="flex justify-end gap-3 border-t border-slate-100 pt-5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  class="h-10 rounded-xl border-slate-300 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                  :disabled="isSubmitting"
-                  @click="handleClose"
-                >
-                  Cancel
-                </Button>
-
-                <Button
-                  type="submit"
-                  class="h-10 rounded-xl bg-green-700 px-5 text-sm font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
-                  :disabled="isSubmitting"
-                >
-                  {{ isSubmitting ? 'Saving...' : isEditMode ? 'Update Member' : 'Create Member' }}
-                </Button>
-              </div>
-            </form>
+            <ToggleSwitch v-model="form.isActive" />
           </div>
-        </Transition>
+
+          <div
+            class="flex items-center justify-between gap-4 rounded-lg border border-border bg-surface/30 px-4 py-3"
+          >
+            <div>
+              <p class="text-sm font-semibold text-heading">Verified Details</p>
+
+              <p class="mt-1 text-xs leading-5 text-secondary-text">
+                Confirm that the member information has been verified.
+              </p>
+            </div>
+
+            <ToggleSwitch v-model="form.isVerified" />
+          </div>
+        </div>
+      </section>
+
+      <Divider />
+
+      <!-- Verification Summary -->
+      <section>
+        <div class="flex items-start gap-2">
+          <BadgeCheck class="mt-0.5 h-4 w-4 shrink-0 text-primary" :stroke-width="2" />
+
+          <div>
+            <h3 class="text-sm font-bold text-heading">Before Saving</h3>
+
+            <p class="mt-1 text-xs leading-5 text-secondary-text">
+              Confirm that the member name, mobile number and joining date are accurate before
+              submitting the form.
+            </p>
+          </div>
+        </div>
+      </section>
+    </form>
+
+    <!-- Footer -->
+    <template #footer>
+      <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button
+          type="button"
+          severity="secondary"
+          outlined
+          class="modal-secondary-button"
+          :disabled="isSubmitting"
+          @click="handleClose"
+        >
+          Cancel
+        </Button>
+
+        <Button
+          type="submit"
+          form="cooperative-member-form"
+          class="modal-primary-button"
+          :disabled="isSubmitting"
+        >
+          <LoaderCircle v-if="isSubmitting" class="mr-2 h-4 w-4 animate-spin" :stroke-width="2" />
+
+          <Save v-else class="mr-2 h-4 w-4" :stroke-width="2" />
+
+          {{ isSubmitting ? 'Saving...' : submitLabel }}
+        </Button>
       </div>
-    </Transition>
-  </Teleport>
+    </template>
+  </Dialog>
 </template>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
+/*
+  PrimeVue renders the dialog outside the component DOM using teleport.
+  Global selectors ensure that the theme styles reach the rendered modal.
+*/
+
+:global(.cooperative-member-dialog.p-dialog) {
+  overflow: hidden;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 0.875rem !important;
+  background-color: var(--color-card) !important;
+  color: var(--color-heading) !important;
+  box-shadow: 0 20px 45px rgb(0 0 0 / 18%) !important;
 }
 
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+:global(.cooperative-member-dialog .p-dialog-header),
+:global(.cooperative-member-dialog .p-dialog-content),
+:global(.cooperative-member-dialog .p-dialog-footer) {
+  background-color: var(--color-card) !important;
+  color: var(--color-heading) !important;
 }
 
-.scale-enter-active,
-.scale-leave-active {
-  transition:
-    opacity 0.25s ease,
-    transform 0.25s ease;
+:global(.cooperative-member-dialog .p-dialog-header) {
+  padding: 1.25rem 1.5rem 1rem !important;
+  border-bottom: 1px solid var(--color-border) !important;
 }
 
-.scale-enter-from,
-.scale-leave-to {
-  opacity: 0;
-  transform: scale(0.97);
+:global(.cooperative-member-dialog .p-dialog-content) {
+  max-height: min(72vh, 780px);
+  overflow-y: auto;
+  padding: 1.5rem !important;
+}
+
+:global(.cooperative-member-dialog .p-dialog-footer) {
+  padding: 1rem 1.5rem !important;
+  border-top: 1px solid var(--color-border) !important;
+}
+
+:global(.cooperative-member-dialog .p-divider.p-divider-horizontal::before) {
+  border-top-color: var(--color-border) !important;
+}
+
+:global(.cooperative-member-dialog-mask) {
+  background-color: rgb(0 0 0 / 52%) !important;
+  backdrop-filter: blur(2px);
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.form-label {
+  color: var(--color-secondary-text);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.form-input {
+  width: 100%;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 0.5rem !important;
+  background-color: var(--color-card) !important;
+  color: var(--color-heading) !important;
+  font-size: 0.875rem !important;
+  box-shadow: none !important;
+}
+
+.form-input::placeholder {
+  color: var(--color-muted-text) !important;
+}
+
+.form-input:enabled:hover {
+  border-color: var(--color-primary) !important;
+}
+
+.form-input:enabled:focus {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent) !important;
+}
+
+:global(.cooperative-member-dialog .p-inputtext) {
+  padding: 0.7rem 0.8rem !important;
+}
+
+/*
+  PrimeVue Select.
+*/
+:global(.cooperative-member-dialog .p-select.form-input) {
+  display: flex;
+  align-items: center;
+  padding: 0 !important;
+}
+
+:global(.cooperative-member-dialog .p-select.form-input:hover) {
+  border-color: var(--color-primary) !important;
+}
+
+:global(.cooperative-member-dialog .p-select.form-input.p-focus) {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent) !important;
+}
+
+:global(.cooperative-member-dialog .p-select-label) {
+  padding: 0.7rem 0.8rem !important;
+  color: var(--color-heading) !important;
+  font-size: 0.875rem !important;
+}
+
+:global(.cooperative-member-dialog .p-select-label.p-placeholder) {
+  color: var(--color-muted-text) !important;
+}
+
+:global(.cooperative-member-dialog .p-select-dropdown) {
+  color: var(--color-secondary-text) !important;
+}
+
+/*
+  PrimeVue toggle switches.
+*/
+:global(.cooperative-member-dialog .p-toggleswitch.p-toggleswitch-checked .p-toggleswitch-slider) {
+  background-color: var(--color-primary) !important;
+}
+
+:global(.cooperative-member-dialog .p-toggleswitch:not(.p-disabled):hover .p-toggleswitch-slider) {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent) !important;
+}
+
+/*
+  Modal buttons.
+*/
+:global(.cooperative-member-dialog .modal-icon-button.p-button) {
+  color: var(--color-secondary-text) !important;
+}
+
+:global(.cooperative-member-dialog .modal-icon-button.p-button:hover) {
+  background-color: color-mix(in srgb, var(--color-primary) 10%, transparent) !important;
+  color: var(--color-primary) !important;
+}
+
+:global(.cooperative-member-dialog .modal-secondary-button.p-button) {
+  border-color: var(--color-border) !important;
+  background-color: var(--color-card) !important;
+  color: var(--color-secondary-text) !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+}
+
+:global(.cooperative-member-dialog .modal-secondary-button.p-button:hover) {
+  border-color: var(--color-primary) !important;
+  background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-card)) !important;
+  color: var(--color-primary) !important;
+}
+
+:global(.cooperative-member-dialog .modal-primary-button.p-button) {
+  border-color: var(--color-primary) !important;
+  background-color: var(--color-primary) !important;
+  color: var(--color-primary-foreground) !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+}
+
+:global(.cooperative-member-dialog .modal-primary-button.p-button:hover) {
+  border-color: var(--color-primary-hover) !important;
+  background-color: var(--color-primary-hover) !important;
 }
 </style>

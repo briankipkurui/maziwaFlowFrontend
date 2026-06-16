@@ -4,12 +4,20 @@ import { useAuthStore } from '@/stores/auth';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
+const redirectToLogin = () => {
+  const currentUrl = new URL(window.location.href);
+  const tenant = currentUrl.searchParams.get('tenant');
+
+  window.location.href = tenant ? `/login?tenant=${encodeURIComponent(tenant)}` : '/login';
+};
+
 export const httpPublic = axios.create({
   baseURL: BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 10000,
+  withCredentials: true,
 });
 
 const http = axios.create({
@@ -18,6 +26,7 @@ const http = axios.create({
     'Content-Type': 'application/json',
   },
   timeout: 10000,
+  withCredentials: true,
 });
 
 http.interceptors.request.use(
@@ -37,56 +46,43 @@ http.interceptors.request.use(
 http.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ApiError>) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & {
-      _retry?: boolean;
-    };
+    const originalRequest = error.config as
+      | (InternalAxiosRequestConfig & { _retry?: boolean })
+      | undefined;
 
     const authStore = useAuthStore();
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (!originalRequest) {
+      return Promise.reject(error);
+    }
+
+    const isRefreshRequest = originalRequest.url?.includes('/auth/refresh-token');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshRequest) {
       originalRequest._retry = true;
 
-      const refreshToken = authStore.getRefreshToken();
+      try {
+        /**
+         * Refresh token is stored in an httpOnly cookie.
+         * Do NOT read it from Pinia/localStorage.
+         * Do NOT send it in the request body.
+         * Browser will send the cookie automatically because withCredentials is true.
+         */
+        const response = await httpPublic.post('/auth/refresh-token');
 
-      if (refreshToken) {
-        try {
-          const response = await httpPublic.post('/auth/refresh-token', {
-            refreshToken,
-          });
+        const { accessToken } = response.data;
 
-          const {
-            accessToken,
-            refreshToken: newRefreshToken,
-          } = response.data;
+        authStore.setAccessToken(accessToken);
 
-          authStore.setAccessToken(accessToken);
-          authStore.setRefreshToken(newRefreshToken);
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
 
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        return http(originalRequest);
+      } catch (refreshError) {
+        authStore.clearAuth();
+        redirectToLogin();
 
-          return http(originalRequest);
-        } catch (refreshError) {
-          authStore.clearAuth();
-
-          const currentUrl = new URL(window.location.href);
-          const tenant = currentUrl.searchParams.get('tenant');
-
-          window.location.href = tenant
-            ? `/login?tenant=${encodeURIComponent(tenant)}`
-            : '/login';
-
-          return Promise.reject(refreshError);
-        }
+        return Promise.reject(refreshError);
       }
-
-      authStore.clearAuth();
-
-      const currentUrl = new URL(window.location.href);
-      const tenant = currentUrl.searchParams.get('tenant');
-
-      window.location.href = tenant
-        ? `/login?tenant=${encodeURIComponent(tenant)}`
-        : '/login';
     }
 
     return Promise.reject(error);

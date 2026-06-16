@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { LoaderCircle, Pencil, Trash2 } from 'lucide-vue-next';
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import Column from 'primevue/column';
+
+import EntityTable from '@/components/shared/EntityTable.vue';
+import { Button } from '@/components/ui/button';
+
+import { useActiveCooperative } from '@/composables/cooperative/useActiveCooperative.ts';
 
 import CooperativeMemberModal from './CooperativeMemberModal.vue';
 
@@ -28,7 +25,6 @@ import type {
   CooperativeMemberPayload,
   CooperativeMemberStatus,
 } from '../types/cooperativeMember';
-import { useActiveCooperative } from '@/composables/cooperative/useActiveCooperative.ts';
 
 const searchInput = ref('');
 const appliedSearch = ref('');
@@ -36,8 +32,8 @@ const page = ref(1);
 const pageSize = ref(10);
 
 const isModalOpen = ref(false);
-
 const selectedMember = ref<CooperativeMember | null>(null);
+const deletingMemberId = ref<string | null>(null);
 
 const { activeCooperativeId, activeCooperative } = useActiveCooperative();
 
@@ -47,32 +43,30 @@ const queryParams = computed(() => ({
   search: appliedSearch.value || undefined,
 }));
 
-const { data, isLoading, isFetching, isError, error, refetch } =
-  useCooperativeMembersQuery(queryParams);
+const { data, isLoading, isError, error, refetch } = useCooperativeMembersQuery(queryParams);
 
 const createMutation = useCreateCooperativeMemberMutation();
-
 const updateMutation = useUpdateCooperativeMemberMutation();
-
 const deleteMutation = useDeleteCooperativeMemberMutation();
 
 const members = computed(() => data.value?.results ?? []);
-
 const totalItems = computed(() => data.value?.totalItems ?? 0);
-
 const totalPages = computed(() => data.value?.totalPages ?? 1);
-
 const currentPage = computed(() => data.value?.currentPage ?? page.value);
-
 const hasNextPage = computed(() => data.value?.hasNextPage ?? false);
-
 const hasPreviousPage = computed(() => data.value?.hasPreviousPage ?? false);
+
+const cooperativeName = computed(
+  () => activeCooperative.value?.cooperative.groupName ?? 'the logged-in cooperative',
+);
+
+const tableDescription = computed(
+  () => `Manage members registered under ${cooperativeName.value}.`,
+);
 
 const isSubmitting = computed(
   () => createMutation.isPending.value || updateMutation.isPending.value,
 );
-
-const deletingMemberId = ref<string | null>(null);
 
 const errorMessage = computed(() => {
   if (error.value instanceof Error) {
@@ -83,34 +77,46 @@ const errorMessage = computed(() => {
 });
 
 const getFullName = (member: CooperativeMember): string => {
-  return [member.profile?.firstName, member.profile?.middleName, member.profile?.lastName]
+  const fullName = [member.profile?.firstName, member.profile?.middleName, member.profile?.lastName]
     .filter(Boolean)
     .join(' ');
+
+  return fullName || 'Unnamed member';
 };
 
 const getInitials = (member: CooperativeMember): string => {
-  return [member.profile?.firstName, member.profile?.lastName]
+  const initials = [member.profile?.firstName, member.profile?.lastName]
     .filter(Boolean)
     .map((name) => name?.charAt(0).toUpperCase())
     .join('');
+
+  return initials || 'CM';
 };
 
 const getStatusClass = (status: CooperativeMemberStatus): string => {
   if (status === 'ACTIVE') {
-    return 'bg-green-50 text-green-700 ring-green-100';
+    return 'bg-success/10 text-success ring-success/20';
   }
 
   if (status === 'SUSPENDED') {
-    return 'bg-amber-50 text-amber-700 ring-amber-100';
+    return 'bg-primary/10 text-primary ring-primary/20';
   }
 
-  return 'bg-slate-100 text-slate-600 ring-slate-200';
+  return 'bg-surface text-secondary-text ring-border';
 };
 
 const formatDate = (date?: string): string => {
-  if (!date) return 'Not provided';
+  if (!date) {
+    return 'Not provided';
+  }
 
-  return new Date(date).toLocaleDateString('en-KE', {
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return 'Not provided';
+  }
+
+  return parsedDate.toLocaleDateString('en-KE', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -129,13 +135,17 @@ const clearSearch = () => {
 };
 
 const nextPage = () => {
-  if (!hasNextPage.value) return;
+  if (!hasNextPage.value) {
+    return;
+  }
 
   page.value += 1;
 };
 
 const previousPage = () => {
-  if (!hasPreviousPage.value) return;
+  if (!hasPreviousPage.value) {
+    return;
+  }
 
   page.value -= 1;
 };
@@ -173,7 +183,9 @@ const handleDeleteMember = async (member: CooperativeMember) => {
 
   const shouldDelete = window.confirm(`Are you sure you want to delete ${memberName}?`);
 
-  if (!shouldDelete) return;
+  if (!shouldDelete) {
+    return;
+  }
 
   deletingMemberId.value = member.id;
 
@@ -186,265 +198,183 @@ const handleDeleteMember = async (member: CooperativeMember) => {
 </script>
 
 <template>
-  <section class="min-h-screen bg-slate-50 px-3 py-4 sm:px-5 md:px-7 lg:px-8">
-    <div class="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-          Cooperative Members
-        </h1>
+  <!-- No cooperative linked to the logged-in account -->
+  <section v-if="!activeCooperativeId" class="min-h-screen bg-background px-4 py-6 sm:px-6 lg:px-8">
+    <div class="mb-6">
+      <h1 class="text-[26px] font-bold tracking-[-0.02em] text-heading">Cooperative Members</h1>
 
-        <p class="mt-1 text-xs text-slate-500 sm:text-sm">
-          Manage members registered under
-          <span class="font-semibold text-slate-700">
-            {{
-              activeCooperative?.cooperative.groupName ??
-              activeCooperative?.cooperative.groupName ??
-              'the logged-in cooperative'
-            }}
-          </span>
-          .
-        </p>
-      </div>
-
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <form class="flex w-full gap-2 sm:w-auto" @submit.prevent="handleSearch">
-          <Input
-            v-model="searchInput"
-            type="text"
-            placeholder="Search members"
-            class="h-10 w-full rounded-md border-slate-300 bg-white text-xs shadow-sm focus-visible:ring-green-600 sm:w-72 sm:text-sm md:w-80"
-          />
-
-          <Button
-            type="submit"
-            variant="outline"
-            class="h-10 cursor-pointer px-4 text-xs font-semibold transition-all hover:bg-slate-100 active:scale-95"
-          >
-            Search
-          </Button>
-
-          <Button
-            v-if="appliedSearch"
-            type="button"
-            variant="outline"
-            class="h-10 cursor-pointer px-4 text-xs font-semibold transition-all hover:bg-slate-100 active:scale-95"
-            @click="clearSearch"
-          >
-            Clear
-          </Button>
-        </form>
-
-        <Button
-          type="button"
-          class="h-10 cursor-pointer rounded-md bg-green-700 px-5 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm transition-all hover:bg-green-800 hover:shadow-lg active:scale-95 sm:text-xs"
-          :disabled="!activeCooperativeId"
-          @click="openCreateModal"
-        >
-          Create Member
-        </Button>
-      </div>
+      <p class="mt-1.5 text-sm font-normal text-secondary-text">
+        Manage members registered under your cooperative.
+      </p>
     </div>
 
     <div
-      v-if="!activeCooperativeId"
-      class="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700"
+      class="rounded-xl border border-primary/30 bg-primary/10 p-4 text-sm font-medium text-primary"
     >
       No cooperative is linked to your logged-in account. Please log in again or contact the system
       administrator.
     </div>
+  </section>
 
-    <template v-else>
-      <div class="mb-3 flex items-center justify-between border-b border-slate-200 pb-3">
-        <p class="text-xs font-medium text-slate-500 sm:text-sm">
-          Total: {{ totalItems }} member(s)
-        </p>
-
-        <Button
-          type="button"
-          variant="outline"
-          class="h-9 cursor-pointer px-4 text-xs font-semibold transition-all hover:bg-slate-100 active:scale-95"
-          :disabled="isFetching"
-          @click="refetch"
-        >
-          {{ isFetching ? 'Refreshing...' : 'Refresh' }}
-        </Button>
-      </div>
-
-      <div
-        v-if="isLoading"
-        class="flex min-h-[250px] items-center justify-center bg-white text-xs text-slate-500 shadow-sm sm:text-sm"
-      >
-        Loading cooperative members...
-      </div>
-
-      <div
-        v-else-if="isError"
-        class="rounded-md border border-red-200 bg-red-50 p-4 text-xs text-red-700 sm:text-sm"
-      >
-        {{ errorMessage }}
-      </div>
-
-      <div v-else class="overflow-x-auto bg-white shadow-sm">
-        <Table class="min-w-[1300px]">
-          <TableHeader>
-            <TableRow class="border-b border-slate-100 bg-slate-50 hover:bg-slate-50">
-              <TableHead class="w-[27%] px-4 py-4 text-xs font-semibold text-slate-400">
-                Member Information
-              </TableHead>
-
-              <TableHead class="px-4 py-4 text-xs font-semibold text-slate-400">
-                Member Number
-              </TableHead>
-
-              <TableHead class="px-4 py-4 text-xs font-semibold text-slate-400">
-                Identification
-              </TableHead>
-
-              <TableHead class="px-4 py-4 text-xs font-semibold text-slate-400">
-                Location
-              </TableHead>
-
-              <TableHead class="px-4 py-4 text-xs font-semibold text-slate-400"> Role </TableHead>
-
-              <TableHead class="px-4 py-4 text-xs font-semibold text-slate-400"> Status </TableHead>
-
-              <TableHead class="px-4 py-4 text-xs font-semibold text-slate-400"> Joined </TableHead>
-
-              <TableHead class="px-4 py-4 text-right text-xs font-semibold text-slate-400">
-                Actions
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-
-          <TableBody>
-            <TableRow
-              v-for="member in members"
-              :key="member.id"
-              class="border-b border-slate-100 bg-white transition-colors duration-200 hover:bg-green-50/40"
+  <!-- Members table -->
+  <EntityTable
+    v-else
+    v-model:search-value="searchInput"
+    title="Cooperative Members"
+    :description="tableDescription"
+    search-placeholder="Search cooperative members"
+    create-label="Create Member"
+    item-label="member(s)"
+    :rows="members"
+    :total-items="totalItems"
+    :current-page="currentPage"
+    :total-pages="totalPages"
+    :has-previous-page="hasPreviousPage"
+    :has-next-page="hasNextPage"
+    :is-loading="isLoading"
+    :is-error="isError"
+    :error-message="errorMessage"
+    data-key="id"
+    wide
+    @search="handleSearch"
+    @clear="clearSearch"
+    @refresh="() => refetch()"
+    @create="openCreateModal"
+    @previous="previousPage"
+    @next="nextPage"
+  >
+    <template #columns>
+      <!-- Member Information -->
+      <Column header="Member Information" style="width: 28%">
+        <template #body="{ data: member }">
+          <div class="flex items-center gap-3">
+            <div
+              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-xs font-bold text-primary"
             >
-              <TableCell class="px-4 py-4">
-                <div class="flex items-center gap-3">
-                  <div
-                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-green-100 bg-green-50 text-xs font-bold text-green-700 shadow-sm"
-                  >
-                    {{ getInitials(member) }}
-                  </div>
+              {{ getInitials(member) }}
+            </div>
 
-                  <div>
-                    <p class="text-sm font-semibold text-slate-800">
-                      {{ getFullName(member) }}
-                    </p>
+            <div class="min-w-0">
+              <p class="truncate text-sm font-semibold text-heading">
+                {{ getFullName(member) }}
+              </p>
 
-                    <p class="mt-0.5 text-xs font-medium text-slate-400">
-                      {{
-                        member.profile?.mobileNumber || member.mobileNumber || 'No mobile number'
-                      }}
-                    </p>
+              <p class="mt-0.5 truncate text-xs font-medium text-muted-text">
+                {{ member.profile?.mobileNumber || member.mobileNumber || 'No mobile number' }}
+              </p>
 
-                    <p class="mt-1 text-xs text-slate-500">
-                      {{ member.profile?.email || member.email || 'No email address' }}
-                    </p>
-                  </div>
-                </div>
-              </TableCell>
+              <p class="mt-1 truncate text-xs text-secondary-text">
+                {{ member.profile?.email || member.email || 'No email address' }}
+              </p>
+            </div>
+          </div>
+        </template>
+      </Column>
 
-              <TableCell class="px-4 py-4 text-sm font-medium text-slate-600">
-                {{ member.memberNumber || 'Not assigned' }}
-              </TableCell>
+      <!-- Member Number -->
+      <Column header="Member Number">
+        <template #body="{ data: member }">
+          <span class="text-sm font-medium text-secondary-text">
+            {{ member.memberNumber || 'Not assigned' }}
+          </span>
+        </template>
+      </Column>
 
-              <TableCell class="px-4 py-4 text-sm font-medium text-slate-600">
-                {{ member.identificationNumber || 'Not provided' }}
-              </TableCell>
+      <!-- Identification -->
+      <Column header="Identification">
+        <template #body="{ data: member }">
+          <span class="text-sm font-medium text-secondary-text">
+            {{ member.identificationNumber || 'Not provided' }}
+          </span>
+        </template>
+      </Column>
 
-              <TableCell class="px-4 py-4 text-sm font-medium text-slate-600">
-                {{ member.profile?.county || member.profile?.location || 'Not provided' }}
-              </TableCell>
+      <!-- Location -->
+      <Column header="Location">
+        <template #body="{ data: member }">
+          <span class="text-sm font-medium text-secondary-text">
+            {{ member.profile?.county || member.profile?.location || 'Not provided' }}
+          </span>
+        </template>
+      </Column>
 
-              <TableCell class="px-4 py-4 text-sm font-medium text-slate-600">
-                {{ member.role?.name || 'Standard Member' }}
-              </TableCell>
+      <!-- Role -->
+      <Column header="Role">
+        <template #body="{ data: member }">
+          <span class="text-sm font-medium text-secondary-text">
+            {{ member.role?.name || 'Standard Member' }}
+          </span>
+        </template>
+      </Column>
 
-              <TableCell class="px-4 py-4">
-                <span
-                  class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1"
-                  :class="getStatusClass(member.status)"
-                >
-                  {{ member.status }}
-                </span>
-              </TableCell>
+      <!-- Status -->
+      <Column header="Status">
+        <template #body="{ data: member }">
+          <span
+            class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1"
+            :class="getStatusClass(member.status)"
+          >
+            {{ member.status }}
+          </span>
+        </template>
+      </Column>
 
-              <TableCell class="px-4 py-4 text-sm font-medium text-slate-600">
-                {{ formatDate(member.joinedAt) }}
-              </TableCell>
+      <!-- Joined Date -->
+      <Column header="Joined">
+        <template #body="{ data: member }">
+          <span class="text-sm font-medium text-secondary-text">
+            {{ formatDate(member.joinedAt) }}
+          </span>
+        </template>
+      </Column>
 
-              <TableCell class="px-4 py-4 text-right">
-                <div class="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    class="h-8 cursor-pointer px-3 text-xs font-semibold transition-all hover:border-green-700 hover:bg-green-50 hover:text-green-700 active:scale-95"
-                    @click="openUpdateModal(member)"
-                  >
-                    Edit
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    class="h-8 cursor-pointer px-3 text-xs font-semibold text-red-600 transition-all hover:border-red-600 hover:bg-red-50 hover:text-red-700 active:scale-95"
-                    :disabled="deletingMemberId === member.id"
-                    @click="handleDeleteMember(member)"
-                  >
-                    {{ deletingMemberId === member.id ? 'Deleting...' : 'Delete' }}
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-
-            <TableRow v-if="members.length === 0">
-              <TableCell :colspan="8" class="h-40 text-center text-xs text-slate-500 sm:text-sm">
-                No cooperative members found.
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-
-        <div
-          class="flex flex-col gap-3 border-t border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <p class="text-xs text-slate-500">Page {{ currentPage }} of {{ totalPages }}</p>
-
-          <div class="flex items-center gap-2">
+      <!-- Actions -->
+      <Column header="Actions" style="width: 190px">
+        <template #body="{ data: member }">
+          <div class="flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"
-              class="h-9 cursor-pointer px-4 text-xs transition-all hover:bg-slate-100 active:scale-95"
-              :disabled="!hasPreviousPage"
-              @click="previousPage"
+              class="h-8 cursor-pointer gap-1 rounded-lg border-border bg-card px-3 text-xs font-semibold text-secondary-text shadow-none transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary"
+              title="Edit member"
+              @click.stop="openUpdateModal(member)"
             >
-              Previous
+              <Pencil class="h-3.5 w-3.5" :stroke-width="2" />
+
+              Edit
             </Button>
 
             <Button
               type="button"
               variant="outline"
-              class="h-9 cursor-pointer px-4 text-xs transition-all hover:bg-slate-100 active:scale-95"
-              :disabled="!hasNextPage"
-              @click="nextPage"
+              class="h-8 cursor-pointer gap-1 rounded-lg border-border bg-card px-3 text-xs font-semibold text-error shadow-none transition-colors hover:border-error hover:bg-error/10 hover:text-error"
+              title="Delete member"
+              :disabled="deletingMemberId === member.id"
+              @click.stop="handleDeleteMember(member)"
             >
-              Next
+              <LoaderCircle
+                v-if="deletingMemberId === member.id"
+                class="h-3.5 w-3.5 animate-spin"
+                :stroke-width="2"
+              />
+
+              <Trash2 v-else class="h-3.5 w-3.5" :stroke-width="2" />
+
+              {{ deletingMemberId === member.id ? 'Deleting...' : 'Delete' }}
             </Button>
           </div>
-        </div>
-      </div>
+        </template>
+      </Column>
     </template>
 
-    <CooperativeMemberModal
-      :open="isModalOpen"
-      :member="selectedMember"
-      :is-submitting="isSubmitting"
-      @close="closeModal"
-      @submit="handleSubmitMember"
-    />
-  </section>
+    <template #empty> No cooperative members found. </template>
+  </EntityTable>
+
+  <CooperativeMemberModal
+    :open="isModalOpen"
+    :member="selectedMember"
+    :is-submitting="isSubmitting"
+    @close="closeModal"
+    @submit="handleSubmitMember"
+  />
 </template>

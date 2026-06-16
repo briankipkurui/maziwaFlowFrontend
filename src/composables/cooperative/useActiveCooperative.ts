@@ -1,27 +1,24 @@
 import { useAuthFeatureStore } from '@/features/auth/stores/authStore';
 import { storeToRefs } from 'pinia';
 
-
 export const useActiveCooperative = () => {
-    const authStore = useAuthFeatureStore();
+  const authStore = useAuthFeatureStore();
 
-    const { activeCooperativeId, activeCooperative } = storeToRefs(authStore);
+  const { activeCooperativeId, activeCooperative } = storeToRefs(authStore);
 
-    const requireActiveCooperativeId = (): string => {
-        const cooperativeId = activeCooperativeId.value;
+  const requireActiveCooperativeId = (): string => {
+    const cooperativeId = activeCooperativeId.value;
 
-        if (!cooperativeId) {
-            throw new Error(
-                'No cooperative is linked to the logged-in account. Please log in again.',
-            );
-        }
+    if (!cooperativeId) {
+      throw new Error('No cooperative is linked to the logged-in account. Please log in again.');
+    }
 
-        return cooperativeId;
-    };
+    return cooperativeId;
+  };
 
-    return {
-        activeCooperativeId,
-        activeCooperative,
-        requireActiveCooperativeId,
-    };
+  return {
+    activeCooperativeId,
+    activeCooperative,
+    requireActiveCooperativeId,
+  };
 };

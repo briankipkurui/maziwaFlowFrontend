@@ -1,7 +1,4 @@
-export type CooperativeMemberStatus =
-  | 'ACTIVE'
-  | 'INACTIVE'
-  | 'SUSPENDED';
+export type CooperativeMemberStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
 
 export interface CooperativeMemberProfilePayload {
   firstName: string;
@@ -29,8 +26,7 @@ export interface CooperativeMemberPayload {
   profile: CooperativeMemberProfilePayload;
 }
 
-export interface CooperativeMemberProfile
-  extends CooperativeMemberProfilePayload {
+export interface CooperativeMemberProfile extends CooperativeMemberProfilePayload {
   id: string;
   cooperativeMemberId: string;
   createdAt: string;

@@ -4,14 +4,23 @@ import { authService } from '../../services/auth.service';
 import { useAuthFeatureStore } from '../../stores/authStore';
 
 export const useLoginMutation = () => {
-    const authStore = useAuthFeatureStore();
+  const authStore = useAuthFeatureStore();
 
-    return useMutation({
-        mutationFn: (credentials: LoginRequest) =>
-            authService.login(credentials),
+  return useMutation({
+    mutationFn: (credentials: LoginRequest) => authService.login(credentials),
 
-        onSuccess: (data) => {
-            authStore.setAuth(data);
-        },
-    });
+    onSuccess: (data) => {
+      authStore.setAuth(data);
+    },
+  });
+};
+
+export const useRefreshMutation = () => {
+  const authStore = useAuthFeatureStore();
+  return useMutation({
+    mutationFn: () => authService.refresh(),
+    onSuccess: (data) => {
+      authStore.setAuth(data);
+    },
+  });
 };

@@ -7,56 +7,30 @@ import { cooperativeMemberQueryKeys } from '../queryKeys/cooperativeMemberQueryK
 import type { CooperativeMemberListParams } from '../../types/cooperativeMember';
 import { useActiveCooperative } from '@/composables/cooperative/useActiveCooperative';
 
-export const useCooperativeMembersQuery = (
-    params: Ref<CooperativeMemberListParams>,
-) => {
-    const {
-        activeCooperativeId,
-        requireActiveCooperativeId,
-    } = useActiveCooperative();
+export const useCooperativeMembersQuery = (params: Ref<CooperativeMemberListParams>) => {
+  const { activeCooperativeId, requireActiveCooperativeId } = useActiveCooperative();
 
-    return useQuery({
-        queryKey: computed(() =>
-            cooperativeMemberQueryKeys.list(
-                activeCooperativeId.value ?? '',
-                params.value,
-            ),
-        ),
+  return useQuery({
+    queryKey: computed(() =>
+      cooperativeMemberQueryKeys.list(activeCooperativeId.value ?? '', params.value),
+    ),
 
-        queryFn: () =>
-            cooperativeMemberService.list(
-                requireActiveCooperativeId(),
-                params.value,
-            ),
+    queryFn: () => cooperativeMemberService.list(requireActiveCooperativeId(), params.value),
 
-        enabled: computed(() => Boolean(activeCooperativeId.value)),
-    });
+    enabled: computed(() => Boolean(activeCooperativeId.value)),
+  });
 };
 
-export const useCooperativeMemberQuery = (
-    id: Ref<string>,
-) => {
-    const {
-        activeCooperativeId,
-        requireActiveCooperativeId,
-    } = useActiveCooperative();
+export const useCooperativeMemberQuery = (id: Ref<string>) => {
+  const { activeCooperativeId, requireActiveCooperativeId } = useActiveCooperative();
 
-    return useQuery({
-        queryKey: computed(() =>
-            cooperativeMemberQueryKeys.detail(
-                activeCooperativeId.value ?? '',
-                id.value,
-            ),
-        ),
+  return useQuery({
+    queryKey: computed(() =>
+      cooperativeMemberQueryKeys.detail(activeCooperativeId.value ?? '', id.value),
+    ),
 
-        queryFn: () =>
-            cooperativeMemberService.getById(
-                requireActiveCooperativeId(),
-                id.value,
-            ),
+    queryFn: () => cooperativeMemberService.getById(requireActiveCooperativeId(), id.value),
 
-        enabled: computed(
-            () => Boolean(activeCooperativeId.value && id.value),
-        ),
-    });
+    enabled: computed(() => Boolean(activeCooperativeId.value && id.value)),
+  });
 };

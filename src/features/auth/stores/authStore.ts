@@ -13,9 +13,7 @@ export const useAuthFeatureStore = defineStore('authFeature', () => {
   const refreshToken = ref<string | null>(null);
   const message = ref<string | null>(null);
 
-  const isAuthenticated = computed(
-    () => Boolean(accessToken.value && user.value),
-  );
+  const isAuthenticated = computed(() => Boolean(accessToken.value && user.value));
 
   /**
    * Defaults to the first cooperative returned after login.
@@ -44,8 +42,7 @@ export const useAuthFeatureStore = defineStore('authFeature', () => {
     refreshToken.value = loginResponse.refreshToken;
     message.value = loginResponse.message;
 
-    selectedCooperativeId.value =
-      loginResponse.data.cooperatives[0]?.cooperativeId ?? null;
+    selectedCooperativeId.value = loginResponse.data.cooperatives[0]?.cooperativeId ?? null;
   }
 
   function setActiveCooperativeId(cooperativeId: string) {
@@ -54,9 +51,7 @@ export const useAuthFeatureStore = defineStore('authFeature', () => {
     );
 
     if (!cooperativeExists) {
-      throw new Error(
-        'The selected cooperative is not linked to the logged-in user.',
-      );
+      throw new Error('The selected cooperative is not linked to the logged-in user.');
     }
 
     selectedCooperativeId.value = cooperativeId;

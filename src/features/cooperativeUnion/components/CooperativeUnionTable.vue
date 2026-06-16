@@ -3,11 +3,11 @@ import { computed, ref } from 'vue';
 
 import { Pencil } from 'lucide-vue-next';
 
+import Column from 'primevue/column';
+
 import EntityTable from '@/components/shared/EntityTable.vue';
 
 import { Button } from '@/components/ui/button';
-
-import { TableCell, TableHead, TableRow } from '@/components/ui/table';
 
 import CooperativeUnionModal from '../components/CooperativeUnionModal.vue';
 
@@ -124,8 +124,8 @@ const formatDate = (date: string) => {
     search-placeholder="Search cooperative unions"
     create-label="Create Union"
     item-label="union(s)"
+    :rows="cooperativeUnions"
     :total-items="totalItems"
-    :row-count="cooperativeUnions.length"
     :current-page="currentPage"
     :total-pages="totalPages"
     :has-previous-page="hasPreviousPage"
@@ -133,7 +133,6 @@ const formatDate = (date: string) => {
     :is-loading="isLoading"
     :is-error="isError"
     :error-message="errorMessage"
-    :col-span="6"
     @search="handleSearch"
     @clear="clearSearch"
     @refresh="refetch()"
@@ -141,33 +140,10 @@ const formatDate = (date: string) => {
     @previous="previousPage"
     @next="nextPage"
   >
-    <!-- Header -->
-    <template #header>
-      <TableRow>
-        <TableHead class="w-[28%] px-5 py-4 text-xs font-semibold text-secondary-text">
-          Union Information
-        </TableHead>
-
-        <TableHead class="px-5 py-4 text-xs font-semibold text-secondary-text"> County </TableHead>
-
-        <TableHead class="px-5 py-4 text-xs font-semibold text-secondary-text"> Ward </TableHead>
-
-        <TableHead class="px-5 py-4 text-xs font-semibold text-secondary-text"> KRA PIN </TableHead>
-
-        <TableHead class="px-5 py-4 text-xs font-semibold text-secondary-text">
-          Created At
-        </TableHead>
-
-        <TableHead class="px-5 py-4 text-right text-xs font-semibold text-secondary-text">
-          Action
-        </TableHead>
-      </TableRow>
-    </template>
-
-    <!-- Rows -->
-    <template #rows>
-      <TableRow v-for="union in cooperativeUnions" :key="union.id" class="cursor-pointer bg-card">
-        <TableCell class="px-5 py-5">
+    <template #columns>
+      <!-- Union Information -->
+      <Column header="Union Information" header-class="w-[28%]">
+        <template #body="{ data: union }">
           <div class="flex items-center gap-3.5">
             <div
               class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-sm font-bold text-primary"
@@ -181,42 +157,65 @@ const formatDate = (date: string) => {
               </p>
             </div>
           </div>
-        </TableCell>
+        </template>
+      </Column>
 
-        <TableCell class="px-5 py-5 text-sm font-medium text-secondary-text">
-          {{ union.county }}
-        </TableCell>
+      <!-- County -->
+      <Column field="county" header="County">
+        <template #body="{ data: union }">
+          <span class="text-sm font-medium text-secondary-text">
+            {{ union.county || 'Not provided' }}
+          </span>
+        </template>
+      </Column>
 
-        <TableCell class="px-5 py-5 text-sm font-medium text-secondary-text">
-          {{ union.ward }}
-        </TableCell>
+      <!-- Ward -->
+      <Column field="ward" header="Ward">
+        <template #body="{ data: union }">
+          <span class="text-sm font-medium text-secondary-text">
+            {{ union.ward || 'Not provided' }}
+          </span>
+        </template>
+      </Column>
 
-        <TableCell class="px-5 py-5">
+      <!-- KRA PIN -->
+      <Column field="kraPin" header="KRA PIN">
+        <template #body="{ data: union }">
           <span
             class="inline-flex rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
           >
             {{ union.kraPin || 'Not provided' }}
           </span>
-        </TableCell>
+        </template>
+      </Column>
 
-        <TableCell class="px-5 py-5 text-sm font-medium text-secondary-text">
-          {{ formatDate(union.createdAt) }}
-        </TableCell>
+      <!-- Created At -->
+      <Column field="createdAt" header="Created At">
+        <template #body="{ data: union }">
+          <span class="text-sm font-medium text-secondary-text">
+            {{ formatDate(union.createdAt) }}
+          </span>
+        </template>
+      </Column>
 
-        <TableCell class="px-5 py-5 text-right">
-          <Button
-            type="button"
-            variant="outline"
-            class="h-9 cursor-pointer gap-1.5 rounded-lg border-border/60 bg-card px-3 text-xs font-semibold text-secondary-text shadow-none transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary"
-            title="Edit cooperative union"
-            @click.stop="openUpdateModal(union)"
-          >
-            <Pencil class="h-3.5 w-3.5" :stroke-width="2" />
+      <!-- Actions -->
+      <Column header="Action" header-class="text-right">
+        <template #body="{ data: union }">
+          <div class="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              class="h-9 cursor-pointer gap-1.5 rounded-lg border-border/60 bg-card px-3 text-xs font-semibold text-secondary-text shadow-none transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary"
+              title="Edit cooperative union"
+              @click.stop="openUpdateModal(union)"
+            >
+              <Pencil class="h-3.5 w-3.5" :stroke-width="2" />
 
-            Edit
-          </Button>
-        </TableCell>
-      </TableRow>
+              Edit
+            </Button>
+          </div>
+        </template>
+      </Column>
     </template>
 
     <template #empty> No cooperative unions found. </template>

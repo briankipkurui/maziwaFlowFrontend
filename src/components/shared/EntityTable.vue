@@ -11,10 +11,10 @@ import {
   X,
 } from 'lucide-vue-next';
 
+import DataTable from 'primevue/datatable';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 
 const props = withDefaults(
   defineProps<{
@@ -27,8 +27,8 @@ const props = withDefaults(
     createLabel: string;
     itemLabel: string;
 
+    rows: object[];
     totalItems: number;
-    rowCount: number;
 
     currentPage: number;
     totalPages: number;
@@ -39,11 +39,12 @@ const props = withDefaults(
     isError: boolean;
     errorMessage?: string;
 
-    colSpan: number;
+    dataKey?: string;
     wide?: boolean;
   }>(),
   {
     errorMessage: 'Failed to load records.',
+    dataKey: 'id',
     wide: false,
   },
 );
@@ -62,6 +63,10 @@ const searchModel = computed({
   get: () => props.searchValue,
   set: (value: string) => emit('update:searchValue', value),
 });
+
+const tableStyle = computed(() => ({
+  minWidth: props.wide ? '1300px' : '1050px',
+}));
 </script>
 
 <template>
@@ -86,7 +91,7 @@ const searchModel = computed({
         >
           <div class="relative w-full sm:w-80 lg:w-96">
             <Search
-              class="absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted-text"
+              class="absolute left-3.5 top-1/2 z-10 h-[18px] w-[18px] -translate-y-1/2 text-muted-text"
               :stroke-width="2"
             />
 
@@ -170,27 +175,24 @@ const searchModel = computed({
       {{ errorMessage }}
     </div>
 
-    <!-- Table -->
+    <!-- PrimeVue Table -->
     <div v-else class="overflow-hidden rounded-xl border border-border bg-card shadow-none">
       <div class="overflow-x-auto bg-card">
-        <Table class="entity-table bg-card" :class="wide ? 'min-w-[1300px]' : 'min-w-[1050px]'">
-          <TableHeader class="bg-card">
-            <slot name="header" />
-          </TableHeader>
+        <DataTable
+          :value="rows"
+          :data-key="dataKey"
+          :table-style="tableStyle"
+          row-hover
+          class="entity-table"
+        >
+          <slot name="columns" />
 
-          <TableBody class="bg-card">
-            <slot name="rows" />
-
-            <TableRow v-if="rowCount === 0">
-              <TableCell
-                :colspan="colSpan"
-                class="h-44 bg-card text-center text-sm text-muted-text"
-              >
-                <slot name="empty"> No records found. </slot>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+          <template #empty>
+            <div class="flex h-44 items-center justify-center text-sm text-muted-text">
+              <slot name="empty">No records found.</slot>
+            </div>
+          </template>
+        </DataTable>
       </div>
 
       <!-- Pagination -->
@@ -233,46 +235,78 @@ const searchModel = computed({
 
 <style scoped>
 /*
-  Keep every table surface identical to the theme card color:
+  Keep the PrimeVue table aligned with your application theme:
   dark mode = #151515
   light mode = #ffffff
 */
-.entity-table,
-.entity-table :deep(table),
-.entity-table :deep(thead),
-.entity-table :deep(tbody),
-.entity-table :deep(tr),
-.entity-table :deep(th),
-.entity-table :deep(td) {
+.entity-table {
+  background-color: var(--color-card) !important;
+}
+
+.entity-table :deep(.p-datatable-table),
+.entity-table :deep(.p-datatable-thead),
+.entity-table :deep(.p-datatable-tbody),
+.entity-table :deep(.p-datatable-thead > tr),
+.entity-table :deep(.p-datatable-tbody > tr),
+.entity-table :deep(.p-datatable-thead > tr > th),
+.entity-table :deep(.p-datatable-tbody > tr > td),
+.entity-table :deep(.p-datatable-empty-message),
+.entity-table :deep(.p-datatable-empty-message > td) {
   background-color: var(--color-card) !important;
 }
 
 /*
-  Remove the default shadcn row border.
+  Column headings.
 */
-.entity-table :deep(tr) {
-  border-bottom-width: 0 !important;
+.entity-table :deep(.p-datatable-thead > tr > th) {
+  border: 0 !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  padding: 0.95rem 1rem !important;
+  color: var(--color-secondary-text) !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap;
 }
 
 /*
-  Use a subtle divider only between records.
+  Table records.
 */
-.entity-table :deep(tbody tr + tr) {
+.entity-table :deep(.p-datatable-tbody > tr > td) {
+  border: 0 !important;
+  padding: 1rem !important;
+  color: var(--color-heading) !important;
+  font-size: 0.875rem !important;
+  vertical-align: middle;
+}
+
+/*
+  Subtle divider between records.
+*/
+.entity-table :deep(.p-datatable-tbody > tr + tr > td) {
   border-top: 1px solid var(--color-border) !important;
 }
 
 /*
-  Keep the header separated without applying another background shade.
+  Apply a subtle branded hover state.
 */
-.entity-table :deep(thead tr) {
-  border-bottom: 1px solid var(--color-border) !important;
+.entity-table :deep(.p-datatable-tbody > tr:hover > td) {
+  background-color: color-mix(in srgb, var(--color-primary) 4%, var(--color-card)) !important;
 }
 
 /*
-  Apply a very subtle branded hover state only when the user hovers.
+  Remove the default PrimeVue outline when a row is clicked.
 */
-.entity-table :deep(tbody tr:hover),
-.entity-table :deep(tbody tr:hover td) {
-  background-color: color-mix(in srgb, var(--color-primary) 4%, var(--color-card)) !important;
+.entity-table :deep(.p-datatable-tbody > tr:focus) {
+  outline: none !important;
+}
+
+/*
+  Empty state.
+*/
+.entity-table :deep(.p-datatable-empty-message > td) {
+  border: 0 !important;
+  padding: 0 !important;
 }
 </style>
