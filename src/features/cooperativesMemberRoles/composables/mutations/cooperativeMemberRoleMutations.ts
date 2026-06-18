@@ -5,26 +5,22 @@ import type {
   ReplaceCooperativeMemberRolePermissionsPayload,
 } from '../../types/cooperativeMemberRoleTypes';
 
-import { useActiveCooperative } from '@/composables/cooperative/useActiveCooperative';
 import { cooperativeMemberRoleService } from '../../services/cooperativeMemberRolesService';
 import { cooperativeMemberRoleQueryKeys } from '../queryKeys/cooperativeMemberRolesQueryKeys';
 
+type CooperativeMemberRoleDetailsPayload = Omit<CooperativeMemberRolePayload, 'permissionIds'>;
+
 export const useCreateCooperativeMemberRoleMutation = () => {
   const queryClient = useQueryClient();
-  const { requireActiveCooperativeId } = useActiveCooperative();
 
   return useMutation({
-    mutationFn: (payload: CooperativeMemberRolePayload) => {
-      const cooperativeId = requireActiveCooperativeId();
-
-      return cooperativeMemberRoleService.create(cooperativeId, payload);
+    mutationFn: (payload: CooperativeMemberRoleDetailsPayload) => {
+      return cooperativeMemberRoleService.create(payload);
     },
 
     onSuccess: async () => {
-      const cooperativeId = requireActiveCooperativeId();
-
       await queryClient.invalidateQueries({
-        queryKey: cooperativeMemberRoleQueryKeys.lists(cooperativeId),
+        queryKey: cooperativeMemberRoleQueryKeys.lists(),
       });
     },
   });
@@ -32,25 +28,26 @@ export const useCreateCooperativeMemberRoleMutation = () => {
 
 export const useUpdateCooperativeMemberRoleMutation = () => {
   const queryClient = useQueryClient();
-  const { requireActiveCooperativeId } = useActiveCooperative();
 
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: CooperativeMemberRolePayload }) => {
-      const cooperativeId = requireActiveCooperativeId();
-
-      return cooperativeMemberRoleService.update(cooperativeId, id, payload);
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: CooperativeMemberRoleDetailsPayload;
+    }) => {
+      return cooperativeMemberRoleService.update(id, payload);
     },
 
     onSuccess: async (_, variables) => {
-      const cooperativeId = requireActiveCooperativeId();
-
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: cooperativeMemberRoleQueryKeys.lists(cooperativeId),
+          queryKey: cooperativeMemberRoleQueryKeys.lists(),
         }),
 
         queryClient.invalidateQueries({
-          queryKey: cooperativeMemberRoleQueryKeys.detail(cooperativeId, variables.id),
+          queryKey: cooperativeMemberRoleQueryKeys.detail(variables.id),
         }),
       ]);
     },
@@ -59,7 +56,6 @@ export const useUpdateCooperativeMemberRoleMutation = () => {
 
 export const useReplaceCooperativeMemberRolePermissionsMutation = () => {
   const queryClient = useQueryClient();
-  const { requireActiveCooperativeId } = useActiveCooperative();
 
   return useMutation({
     mutationFn: ({
@@ -69,25 +65,21 @@ export const useReplaceCooperativeMemberRolePermissionsMutation = () => {
       id: string;
       payload: ReplaceCooperativeMemberRolePermissionsPayload;
     }) => {
-      const cooperativeId = requireActiveCooperativeId();
-
-      return cooperativeMemberRoleService.replacePermissions(cooperativeId, id, payload);
+      return cooperativeMemberRoleService.replacePermissions(id, payload);
     },
 
     onSuccess: async (_, variables) => {
-      const cooperativeId = requireActiveCooperativeId();
-
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: cooperativeMemberRoleQueryKeys.lists(cooperativeId),
+          queryKey: cooperativeMemberRoleQueryKeys.lists(),
         }),
 
         queryClient.invalidateQueries({
-          queryKey: cooperativeMemberRoleQueryKeys.detail(cooperativeId, variables.id),
+          queryKey: cooperativeMemberRoleQueryKeys.detail(variables.id),
         }),
 
         queryClient.invalidateQueries({
-          queryKey: cooperativeMemberRoleQueryKeys.permissions(cooperativeId),
+          queryKey: cooperativeMemberRoleQueryKeys.permissions(),
         }),
       ]);
     },
@@ -96,24 +88,19 @@ export const useReplaceCooperativeMemberRolePermissionsMutation = () => {
 
 export const useDeleteCooperativeMemberRoleMutation = () => {
   const queryClient = useQueryClient();
-  const { requireActiveCooperativeId } = useActiveCooperative();
 
   return useMutation({
     mutationFn: (id: string) => {
-      const cooperativeId = requireActiveCooperativeId();
-
-      return cooperativeMemberRoleService.delete(cooperativeId, id);
+      return cooperativeMemberRoleService.delete(id);
     },
 
     onSuccess: async (_, id) => {
-      const cooperativeId = requireActiveCooperativeId();
-
       queryClient.removeQueries({
-        queryKey: cooperativeMemberRoleQueryKeys.detail(cooperativeId, id),
+        queryKey: cooperativeMemberRoleQueryKeys.detail(id),
       });
 
       await queryClient.invalidateQueries({
-        queryKey: cooperativeMemberRoleQueryKeys.lists(cooperativeId),
+        queryKey: cooperativeMemberRoleQueryKeys.lists(),
       });
     },
   });

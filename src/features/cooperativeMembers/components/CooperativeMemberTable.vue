@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 
 import { useActiveCooperative } from '@/composables/cooperative/useActiveCooperative.ts';
 
-import CooperativeMemberModal from './CooperativeMemberModal.vue';
 
 import { useCooperativeMembersQuery } from '../composables/queries/cooperativeMemberQueries';
 
@@ -377,15 +376,6 @@ const handleDeleteMember = async (member: CooperativeMember) => {
     <template #empty> No cooperative members found. </template>
   </EntityTable>
 
-  <!-- <CooperativeMemberModal
-    :open="isModalOpen"
-    :member="selectedMember"
-    :is-submitting="isSubmitting"
-    :server-errors="serverErrors"
-    :general-error="generalSubmitError"
-    @close="closeModal"
-    @submit="handleSubmitMember"
-  /> -->
 
   <CooperativeMemberDrawer
     :open="isModalOpen"

@@ -8,18 +8,21 @@ import Column from 'primevue/column';
 import EntityTable from '@/components/shared/EntityTable.vue';
 import { Button } from '@/components/ui/button';
 
-
 import { useCooperativeMemberRolesQuery } from '../composables/queries/cooperativeMemberRoleQueries.ts';
 
 import {
   useCreateCooperativeMemberRoleMutation,
   useDeleteCooperativeMemberRoleMutation,
+  useReplaceCooperativeMemberRolePermissionsMutation,
   useUpdateCooperativeMemberRoleMutation,
 } from '../composables/mutations/cooperativeMemberRoleMutations.ts';
 
+import type {
+  CooperativeMemberRole,
+  CooperativeMemberRolePayload,
+} from '../types/cooperativeMemberRoleTypes.ts';
 
-import type { CooperativeMemberPermission, CooperativeMemberRole, CooperativeMemberRolePayload } from '../types/cooperativeMemberRoleTypes.ts';
-import CooperativeMemberRoleModal from './CooperativeMemberRoleModal.vue';
+import CooperativeMemberRoleDrawer from './CooperativeMemberRoleDrawer.vue';
 
 const searchInput = ref('');
 const appliedSearch = ref('');
@@ -40,6 +43,7 @@ const { data, isLoading, isError, error, refetch } = useCooperativeMemberRolesQu
 
 const createMutation = useCreateCooperativeMemberRoleMutation();
 const updateMutation = useUpdateCooperativeMemberRoleMutation();
+const replacePermissionsMutation = useReplaceCooperativeMemberRolePermissionsMutation();
 const deleteMutation = useDeleteCooperativeMemberRoleMutation();
 
 const roles = computed(() => data.value?.results ?? []);
@@ -50,7 +54,10 @@ const hasNextPage = computed(() => data.value?.hasNextPage ?? false);
 const hasPreviousPage = computed(() => data.value?.hasPreviousPage ?? false);
 
 const isSubmitting = computed(
-  () => createMutation.isPending.value || updateMutation.isPending.value,
+  () =>
+    createMutation.isPending.value ||
+    updateMutation.isPending.value ||
+    replacePermissionsMutation.isPending.value,
 );
 
 const tableDescription = computed(
@@ -83,36 +90,13 @@ const formatDate = (date?: string): string => {
   });
 };
 
-const formatPermissionName = (name: string): string => {
-  return name
-    .replace(/_/g, ' ')
-    .replace(/-/g, ' ')
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-};
+
 
 const getPermissionCount = (role: CooperativeMemberRole): number => {
   return role.permissions?.length ?? 0;
 };
 
-const getPermissionPreview = (role: CooperativeMemberRole): string => {
-  const permissions = role.permissions ?? [];
 
-  if (!permissions.length) {
-    return 'No permissions assigned';
-  }
-
-  const visiblePermissions = permissions
-    .slice(0, 3)
-    .map((permission:CooperativeMemberPermission) => formatPermissionName(permission.name));
-
-  const remainingCount = permissions.length - visiblePermissions.length;
-
-  if (remainingCount > 0) {
-    return `${visiblePermissions.join(', ')} +${remainingCount} more`;
-  }
-
-  return visiblePermissions.join(', ');
-};
 
 const handleSearch = () => {
   page.value = 1;
@@ -157,16 +141,49 @@ const closeModal = () => {
 };
 
 const handleSubmitRole = async (payload: CooperativeMemberRolePayload) => {
-  if (selectedRole.value) {
-    await updateMutation.mutateAsync({
-      id: selectedRole.value.id,
-      payload,
-    });
-  } else {
-    await createMutation.mutateAsync(payload);
-  }
+  const permissionIds = payload.permissionIds ?? [];
 
-  closeModal();
+  /**
+   * Important:
+   * Do not send permissionIds to create/update role endpoint.
+   * permissionIds must only go to the replace permissions endpoint.
+   */
+  const rolePayload = {
+    name: payload.name.trim(),
+    description: payload.description?.trim() || null,
+  };
+
+  try {
+    if (selectedRole.value?.id) {
+      await updateMutation.mutateAsync({
+        id: selectedRole.value.id,
+        payload: rolePayload,
+      });
+
+      await replacePermissionsMutation.mutateAsync({
+        id: selectedRole.value.id,
+        payload: {
+          permissionIds,
+        },
+      });
+
+      closeModal();
+      return;
+    }
+
+    const createdRole = await createMutation.mutateAsync(rolePayload);
+
+    await replacePermissionsMutation.mutateAsync({
+      id: createdRole.id,
+      payload: {
+        permissionIds,
+      },
+    });
+
+    closeModal();
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 const handleDeleteRole = async (role: CooperativeMemberRole) => {
@@ -213,7 +230,6 @@ const handleDeleteRole = async (role: CooperativeMemberRole) => {
     @next="nextPage"
   >
     <template #columns>
-      <!-- Role Information -->
       <Column header="Role Information" style="width: 30%">
         <template #body="{ data: role }">
           <div class="flex items-center gap-3">
@@ -227,16 +243,11 @@ const handleDeleteRole = async (role: CooperativeMemberRole) => {
               <p class="truncate text-sm font-semibold text-heading">
                 {{ role.name }}
               </p>
-
-              <p class="mt-1 truncate text-xs text-secondary-text">
-                {{ role.description || 'No description provided' }}
-              </p>
             </div>
           </div>
         </template>
       </Column>
 
-      <!-- Permissions Count -->
       <Column header="Permissions">
         <template #body="{ data: role }">
           <span
@@ -248,16 +259,6 @@ const handleDeleteRole = async (role: CooperativeMemberRole) => {
         </template>
       </Column>
 
-      <!-- Permission Preview -->
-      <Column header="Assigned Permissions" style="width: 35%">
-        <template #body="{ data: role }">
-          <span class="text-sm font-medium text-secondary-text">
-            {{ getPermissionPreview(role) }}
-          </span>
-        </template>
-      </Column>
-
-      <!-- Created Date -->
       <Column header="Created">
         <template #body="{ data: role }">
           <span class="text-sm font-medium text-secondary-text">
@@ -266,7 +267,6 @@ const handleDeleteRole = async (role: CooperativeMemberRole) => {
         </template>
       </Column>
 
-      <!-- Updated Date -->
       <Column header="Updated">
         <template #body="{ data: role }">
           <span class="text-sm font-medium text-secondary-text">
@@ -275,7 +275,6 @@ const handleDeleteRole = async (role: CooperativeMemberRole) => {
         </template>
       </Column>
 
-      <!-- Status -->
       <Column header="Status">
         <template #body>
           <span
@@ -286,7 +285,6 @@ const handleDeleteRole = async (role: CooperativeMemberRole) => {
         </template>
       </Column>
 
-      <!-- Actions -->
       <Column header="Actions" style="width: 190px">
         <template #body="{ data: role }">
           <div class="flex justify-end gap-2">
@@ -328,7 +326,7 @@ const handleDeleteRole = async (role: CooperativeMemberRole) => {
     <template #empty> No cooperative member roles found. </template>
   </EntityTable>
 
-  <CooperativeMemberRoleModal
+  <CooperativeMemberRoleDrawer
     :open="isModalOpen"
     :role="selectedRole"
     :is-submitting="isSubmitting"
