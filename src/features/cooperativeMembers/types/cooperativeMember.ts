@@ -17,12 +17,10 @@ export interface CooperativeMemberProfilePayload {
 
 export interface CooperativeMemberPayload {
   memberNumber?: string;
+  cooperativeId:string
   identificationNumber?: string;
   roleId?: string;
   status: CooperativeMemberStatus;
-  joinedAt: string;
-  isActive: boolean;
-  isVerified: boolean;
   profile: CooperativeMemberProfilePayload;
 }
 

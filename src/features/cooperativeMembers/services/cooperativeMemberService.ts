@@ -52,18 +52,12 @@ class CooperativeMemberService {
   }
 
   async update(
-    cooperativeId: string,
     id: string,
     payload: CooperativeMemberPayload,
   ): Promise<CooperativeMember> {
     const response = await http.put<CooperativeMember>(
       CooperativeMemberEndpoints.update(id),
-      payload,
-      {
-        params: {
-          cooperativeId,
-        },
-      },
+      payload
     );
 
     return response.data;

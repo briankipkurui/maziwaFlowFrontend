@@ -13,6 +13,8 @@ import cooperativesMemberView from '@/features/cooperativeMembers/views/cooperat
 
 import { useAuthFeatureStore } from '@/features/auth/stores/authStore';
 import { initializeAuth } from '@/utils/initAuth';
+import CooperativeMemberPermissionsView from '@/features/cooperativesMemberRoles/view/CooperativeMemberPermissionsView.vue';
+import CooperativeMemberRoleView from '@/features/cooperativesMemberRoles/view/CooperativeMemberRoleView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -75,6 +77,24 @@ const router = createRouter({
           path: 'cooperativemembers',
           name: 'cooperativemembersViews',
           component: cooperativesMemberView,
+          meta: {
+            title: 'Cooperative Members',
+            requiresAuth: true,
+          },
+        },
+        {
+          path: 'cooperativememberspermissions',
+          name: 'CooperativeMemberPermissionsView',
+          component: CooperativeMemberPermissionsView,
+          meta: {
+            title: 'Cooperative Members',
+            requiresAuth: true,
+          },
+        },
+        {
+          path: 'cooperativemembersroles',
+          name: 'CooperativeMemberRoleView',
+          component: CooperativeMemberRoleView,
           meta: {
             title: 'Cooperative Members',
             requiresAuth: true,

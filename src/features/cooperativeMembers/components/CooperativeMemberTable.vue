@@ -26,6 +26,13 @@ import type {
   CooperativeMemberStatus,
 } from '../types/cooperativeMember';
 
+import type { FieldErrors } from '@/utils/formErrors';
+import { parseApiFieldErrors, getGeneralApiError } from '@/utils/formErrors';
+import CooperativeMemberDrawer from './CooperativeMemberDrawer.vue';
+
+const serverErrors = ref<FieldErrors>({});
+const generalSubmitError = ref('');
+
 const searchInput = ref('');
 const appliedSearch = ref('');
 const page = ref(1);
@@ -166,16 +173,24 @@ const closeModal = () => {
 };
 
 const handleSubmitMember = async (payload: CooperativeMemberPayload) => {
-  if (selectedMember.value) {
-    await updateMutation.mutateAsync({
-      id: selectedMember.value.id,
-      payload,
-    });
-  } else {
-    await createMutation.mutateAsync(payload);
-  }
+  serverErrors.value = {};
+  generalSubmitError.value = '';
 
-  closeModal();
+  try {
+    if (selectedMember.value) {
+      await updateMutation.mutateAsync({
+        id: selectedMember.value.id,
+        payload,
+      });
+    } else {
+      await createMutation.mutateAsync(payload);
+    }
+
+    closeModal();
+  } catch (error) {
+    serverErrors.value = parseApiFieldErrors(error);
+    generalSubmitError.value = getGeneralApiError(error);
+  }
 };
 
 const handleDeleteMember = async (member: CooperativeMember) => {
@@ -257,14 +272,6 @@ const handleDeleteMember = async (member: CooperativeMember) => {
             <div class="min-w-0">
               <p class="truncate text-sm font-semibold text-heading">
                 {{ getFullName(member) }}
-              </p>
-
-              <p class="mt-0.5 truncate text-xs font-medium text-muted-text">
-                {{ member.profile?.mobileNumber || member.mobileNumber || 'No mobile number' }}
-              </p>
-
-              <p class="mt-1 truncate text-xs text-secondary-text">
-                {{ member.profile?.email || member.email || 'No email address' }}
               </p>
             </div>
           </div>
@@ -370,10 +377,22 @@ const handleDeleteMember = async (member: CooperativeMember) => {
     <template #empty> No cooperative members found. </template>
   </EntityTable>
 
-  <CooperativeMemberModal
+  <!-- <CooperativeMemberModal
     :open="isModalOpen"
     :member="selectedMember"
     :is-submitting="isSubmitting"
+    :server-errors="serverErrors"
+    :general-error="generalSubmitError"
+    @close="closeModal"
+    @submit="handleSubmitMember"
+  /> -->
+
+  <CooperativeMemberDrawer
+    :open="isModalOpen"
+    :member="selectedMember"
+    :is-submitting="isSubmitting"
+    :server-errors="serverErrors"
+    :general-error="generalSubmitError"
     @close="closeModal"
     @submit="handleSubmitMember"
   />

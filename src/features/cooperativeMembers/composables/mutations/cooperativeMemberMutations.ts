@@ -34,10 +34,14 @@ export const useUpdateCooperativeMemberMutation = () => {
   const { requireActiveCooperativeId } = useActiveCooperative();
 
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: CooperativeMemberPayload }) => {
-      const cooperativeId = requireActiveCooperativeId();
-
-      return cooperativeMemberService.update(cooperativeId, id, payload);
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: CooperativeMemberPayload;
+    }) => {
+      return cooperativeMemberService.update(id, payload);
     },
 
     onSuccess: async (_, variables) => {

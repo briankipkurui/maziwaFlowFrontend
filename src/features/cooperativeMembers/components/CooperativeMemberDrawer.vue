@@ -1,19 +1,10 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 
-import {
-  BadgeCheck,
-  IdCard,
-  LoaderCircle,
-  MapPin,
-  Save,
-  UserRound,
-  X,
-} from 'lucide-vue-next';
+import { BadgeCheck, IdCard, LoaderCircle, MapPin, Save, UserRound, X } from 'lucide-vue-next';
 
 import Button from 'primevue/button';
-import Dialog from 'primevue/dialog';
-import Divider from 'primevue/divider';
+import Drawer from 'primevue/drawer';
 import InputText from 'primevue/inputtext';
 import Select from 'primevue/select';
 
@@ -70,13 +61,73 @@ type CooperativeMemberForm = CooperativeMemberPayload & {
   };
 };
 
+const currentStep = ref(0);
+
+const steps = [
+  {
+    label: 'Registration',
+    description: 'Role, status and password',
+  },
+  {
+    label: 'Personal Details',
+    description: 'Name and contact details',
+  },
+  {
+    label: 'Location',
+    description: 'Administrative location',
+  },
+  {
+    label: 'Review',
+    description: 'Confirm and save',
+  },
+];
+
+const stepErrorFields = [
+  ['memberNumber', 'identificationNumber', 'status', 'password', 'roleId', 'cooperativeId'],
+  [
+    'profile.firstName',
+    'firstName',
+    'profile.middleName',
+    'middleName',
+    'profile.lastName',
+    'lastName',
+    'profile.mobileNumber',
+    'mobileNumber',
+    'profile.otherNumber',
+    'otherNumber',
+    'profile.email',
+    'email',
+    'profile.kraPin',
+    'kraPin',
+  ],
+  [
+    'profile.county',
+    'county',
+    'profile.subCounty',
+    'subCounty',
+    'profile.division',
+    'division',
+    'profile.location',
+    'location',
+    'profile.subLocation',
+    'subLocation',
+  ],
+  ['general'],
+];
+
 const isEditMode = computed(() => Boolean(props.member));
 
-const dialogTitle = computed(() =>
+const isFirstStep = computed(() => currentStep.value === 0);
+
+const isLastStep = computed(() => currentStep.value === steps.length - 1);
+
+const drawerTitle = computed(() =>
   isEditMode.value ? 'Update Cooperative Member' : 'Create Cooperative Member',
 );
 
 const submitLabel = computed(() => (isEditMode.value ? 'Update Member' : 'Create Member'));
+
+const currentStepLabel = computed(() => steps[currentStep.value]?.label ?? 'Registration');
 
 const roleQueryParams = computed(
   (): CooperativeMemberRoleListParams => ({
@@ -151,6 +202,34 @@ const getFieldError = (...fields: string[]): string => {
 
 const hasFieldError = (...fields: string[]): boolean => {
   return Boolean(getFieldError(...fields));
+};
+
+const hasStepErrors = (stepIndex: number): boolean => {
+  return stepErrorFields[stepIndex]?.some((field) => Boolean(props.serverErrors?.[field])) ?? false;
+};
+
+const goToStep = (stepIndex: number) => {
+  if (props.isSubmitting) {
+    return;
+  }
+
+  currentStep.value = stepIndex;
+};
+
+const goToNextStep = () => {
+  if (currentStep.value >= steps.length - 1) {
+    return;
+  }
+
+  currentStep.value += 1;
+};
+
+const goToPreviousStep = () => {
+  if (currentStep.value <= 0) {
+    return;
+  }
+
+  currentStep.value -= 1;
 };
 
 const getMemberRoleId = (member?: CooperativeMember | null): string => {
@@ -295,6 +374,14 @@ const currentRoleName = computed(() => {
   return selectedRole?.label ?? getMemberRoleName(props.member);
 });
 
+const fullNamePreview = computed(() => {
+  const fullName = [form.profile.firstName, form.profile.middleName, form.profile.lastName]
+    .filter(Boolean)
+    .join(' ');
+
+  return fullName || 'Not provided';
+});
+
 watch(
   () => props.open,
   (open) => {
@@ -302,6 +389,7 @@ watch(
       return;
     }
 
+    currentStep.value = 0;
     populateForm(props.member);
   },
 );
@@ -314,6 +402,32 @@ watch(
     }
 
     populateForm(member);
+  },
+);
+
+watch(
+  () => props.serverErrors,
+  (errors) => {
+    if (!props.open || !errors) {
+      return;
+    }
+
+    const errorKeys = Object.keys(errors);
+
+    if (!errorKeys.length) {
+      return;
+    }
+
+    const firstStepWithError = stepErrorFields.findIndex((fields) =>
+      fields.some((field) => errorKeys.includes(field)),
+    );
+
+    if (firstStepWithError >= 0) {
+      currentStep.value = firstStepWithError;
+    }
+  },
+  {
+    deep: true,
   },
 );
 
@@ -357,10 +471,6 @@ const handleSubmit = () => {
     cooperativeId?: string;
   };
 
-  /**
-   * Send cooperativeId only when creating.
-   * Do not send cooperativeId when updating.
-   */
   if (!isEditMode.value) {
     payload.cooperativeId = requireActiveCooperativeId();
   }
@@ -373,22 +483,21 @@ const handleSubmit = () => {
 
   emit('submit', payload);
 };
-
 </script>
 
 <template>
-  <Dialog
+  <Drawer
     :visible="open"
+    position="right"
     modal
-    dismissable-mask
-    :draggable="false"
-    :closable="false"
-    :close-on-escape="!isSubmitting"
-    class="cooperative-member-dialog"
-    :style="{ width: 'min(1060px, calc(100vw - 2rem))' }"
+    block-scroll
+    :dismissable="!isSubmitting"
+    :show-close-icon="false"
+    class="cooperative-member-drawer"
+    :style="{ width: 'min(760px, 100vw)' }"
     :pt="{
       mask: {
-        class: 'cooperative-member-dialog-mask',
+        class: 'cooperative-member-drawer-mask',
       },
     }"
     @update:visible="handleVisibilityChange"
@@ -397,11 +506,12 @@ const handleSubmit = () => {
       <div class="flex w-full items-start justify-between gap-4">
         <div>
           <h2 class="text-xl font-bold tracking-[-0.02em] text-heading">
-            {{ dialogTitle }}
+            {{ drawerTitle }}
           </h2>
 
           <p class="mt-1 text-sm leading-6 text-secondary-text">
-            Enter the member registration, contact and location details.
+            Step {{ currentStep + 1 }} of {{ steps.length }}:
+            <span class="font-semibold text-heading">{{ currentStepLabel }}</span>
           </p>
         </div>
 
@@ -410,8 +520,8 @@ const handleSubmit = () => {
           severity="secondary"
           text
           rounded
-          aria-label="Close modal"
-          class="modal-icon-button shrink-0"
+          aria-label="Close drawer"
+          class="drawer-icon-button shrink-0"
           :disabled="isSubmitting"
           @click="handleClose"
         >
@@ -420,6 +530,34 @@ const handleSubmit = () => {
       </div>
     </template>
 
+    <div class="mb-5 grid gap-2 sm:grid-cols-4">
+      <button
+        v-for="(step, index) in steps"
+        :key="step.label"
+        type="button"
+        class="step-button"
+        :class="{
+          'step-button-active': currentStep === index,
+          'step-button-error': hasStepErrors(index),
+        }"
+        @click="goToStep(index)"
+      >
+        <span class="step-number">
+          {{ index + 1 }}
+        </span>
+
+        <span class="min-w-0">
+          <span class="block truncate text-xs font-bold">
+            {{ step.label }}
+          </span>
+
+          <span class="mt-0.5 block truncate text-[11px] font-medium opacity-80">
+            {{ step.description }}
+          </span>
+        </span>
+      </button>
+    </div>
+
     <div
       v-if="generalError || getFieldError('general')"
       class="mb-4 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm font-semibold text-error"
@@ -427,8 +565,8 @@ const handleSubmit = () => {
       {{ generalError || getFieldError('general') }}
     </div>
 
-    <form id="cooperative-member-form" class="space-y-6" @submit.prevent="handleSubmit">
-      <section>
+    <form id="cooperative-member-drawer-form" class="space-y-6" @submit.prevent="handleSubmit">
+      <section v-if="currentStep === 0">
         <div class="mb-4 flex items-start gap-2">
           <IdCard class="mt-0.5 h-4 w-4 shrink-0 text-primary" :stroke-width="2" />
 
@@ -436,20 +574,20 @@ const handleSubmit = () => {
             <h3 class="text-sm font-bold text-heading">Member Registration</h3>
 
             <p class="mt-1 text-xs leading-5 text-secondary-text">
-              Capture the member registration, role and account status.
+              Capture the member number, status, password and role.
             </p>
           </div>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="grid gap-4 sm:grid-cols-2">
           <div class="form-field">
-            <label for="member-number" class="form-label">
+            <label for="drawer-member-number" class="form-label">
               Member Number
               <span class="text-muted-text">(Optional)</span>
             </label>
 
             <InputText
-              id="member-number"
+              id="drawer-member-number"
               v-model="form.memberNumber"
               placeholder="Enter member number"
               class="form-input"
@@ -462,13 +600,13 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field">
-            <label for="identification-number" class="form-label">
+            <label for="drawer-identification-number" class="form-label">
               Identification Number
               <span class="text-muted-text">(Optional)</span>
             </label>
 
             <InputText
-              id="identification-number"
+              id="drawer-identification-number"
               v-model="form.identificationNumber"
               placeholder="Enter ID or passport number"
               class="form-input"
@@ -481,13 +619,13 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field">
-            <label for="member-status" class="form-label">
+            <label for="drawer-member-status" class="form-label">
               Member Status
               <span class="text-error">*</span>
             </label>
 
             <Select
-              id="member-status"
+              id="drawer-member-status"
               v-model="form.status"
               :options="statusOptions"
               option-label="label"
@@ -504,14 +642,14 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field">
-            <label for="password" class="form-label">
+            <label for="drawer-password" class="form-label">
               Password
               <span v-if="!isEditMode" class="text-error">*</span>
               <span v-else class="text-muted-text">(Optional)</span>
             </label>
 
             <InputText
-              id="password"
+              id="drawer-password"
               v-model="form.password"
               type="password"
               :required="!isEditMode"
@@ -526,13 +664,13 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field sm:col-span-2">
-            <label for="role-id" class="form-label">
+            <label for="drawer-role-id" class="form-label">
               Member Role
               <span class="text-muted-text">(Optional)</span>
             </label>
 
             <Select
-              id="role-id"
+              id="drawer-role-id"
               v-model="form.roleId"
               :options="roleOptions"
               option-label="label"
@@ -573,9 +711,7 @@ const handleSubmit = () => {
         </div>
       </section>
 
-      <Divider />
-
-      <section>
+      <section v-if="currentStep === 1">
         <div class="mb-4 flex items-start gap-2">
           <UserRound class="mt-0.5 h-4 w-4 shrink-0 text-primary" :stroke-width="2" />
 
@@ -588,15 +724,15 @@ const handleSubmit = () => {
           </div>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="grid gap-4 sm:grid-cols-2">
           <div class="form-field">
-            <label for="first-name" class="form-label">
+            <label for="drawer-first-name" class="form-label">
               First Name
               <span class="text-error">*</span>
             </label>
 
             <InputText
-              id="first-name"
+              id="drawer-first-name"
               v-model="form.profile.firstName"
               required
               placeholder="Enter first name"
@@ -610,13 +746,13 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field">
-            <label for="middle-name" class="form-label">
+            <label for="drawer-middle-name" class="form-label">
               Middle Name
               <span class="text-muted-text">(Optional)</span>
             </label>
 
             <InputText
-              id="middle-name"
+              id="drawer-middle-name"
               v-model="form.profile.middleName"
               placeholder="Enter middle name"
               class="form-input"
@@ -629,13 +765,13 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field">
-            <label for="last-name" class="form-label">
+            <label for="drawer-last-name" class="form-label">
               Last Name
               <span class="text-error">*</span>
             </label>
 
             <InputText
-              id="last-name"
+              id="drawer-last-name"
               v-model="form.profile.lastName"
               required
               placeholder="Enter last name"
@@ -649,13 +785,13 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field">
-            <label for="mobile-number" class="form-label">
+            <label for="drawer-mobile-number" class="form-label">
               Mobile Number
               <span class="text-error">*</span>
             </label>
 
             <InputText
-              id="mobile-number"
+              id="drawer-mobile-number"
               v-model="form.profile.mobileNumber"
               type="tel"
               required
@@ -670,13 +806,13 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field">
-            <label for="other-number" class="form-label">
+            <label for="drawer-other-number" class="form-label">
               Other Number
               <span class="text-muted-text">(Optional)</span>
             </label>
 
             <InputText
-              id="other-number"
+              id="drawer-other-number"
               v-model="form.profile.otherNumber"
               type="tel"
               placeholder="Enter alternative number"
@@ -690,13 +826,13 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field">
-            <label for="email-address" class="form-label">
+            <label for="drawer-email-address" class="form-label">
               Email Address
               <span class="text-muted-text">(Optional)</span>
             </label>
 
             <InputText
-              id="email-address"
+              id="drawer-email-address"
               v-model="form.profile.email"
               type="email"
               placeholder="Enter email address"
@@ -710,13 +846,13 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field">
-            <label for="kra-pin" class="form-label">
+            <label for="drawer-kra-pin" class="form-label">
               KRA PIN
               <span class="text-muted-text">(Optional)</span>
             </label>
 
             <InputText
-              id="kra-pin"
+              id="drawer-kra-pin"
               v-model="form.profile.kraPin"
               placeholder="Enter KRA PIN"
               class="form-input"
@@ -730,9 +866,7 @@ const handleSubmit = () => {
         </div>
       </section>
 
-      <Divider />
-
-      <section>
+      <section v-if="currentStep === 2">
         <div class="mb-4 flex items-start gap-2">
           <MapPin class="mt-0.5 h-4 w-4 shrink-0 text-primary" :stroke-width="2" />
 
@@ -745,15 +879,15 @@ const handleSubmit = () => {
           </div>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="grid gap-4 sm:grid-cols-2">
           <div class="form-field">
-            <label for="county" class="form-label">
+            <label for="drawer-county" class="form-label">
               County
               <span class="text-muted-text">(Optional)</span>
             </label>
 
             <InputText
-              id="county"
+              id="drawer-county"
               v-model="form.profile.county"
               placeholder="Enter county"
               class="form-input"
@@ -766,13 +900,13 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field">
-            <label for="sub-county" class="form-label">
+            <label for="drawer-sub-county" class="form-label">
               Sub County
               <span class="text-muted-text">(Optional)</span>
             </label>
 
             <InputText
-              id="sub-county"
+              id="drawer-sub-county"
               v-model="form.profile.subCounty"
               placeholder="Enter sub county"
               class="form-input"
@@ -785,13 +919,13 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field">
-            <label for="division" class="form-label">
+            <label for="drawer-division" class="form-label">
               Division
               <span class="text-muted-text">(Optional)</span>
             </label>
 
             <InputText
-              id="division"
+              id="drawer-division"
               v-model="form.profile.division"
               placeholder="Enter division"
               class="form-input"
@@ -804,13 +938,13 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field">
-            <label for="location" class="form-label">
+            <label for="drawer-location" class="form-label">
               Location
               <span class="text-muted-text">(Optional)</span>
             </label>
 
             <InputText
-              id="location"
+              id="drawer-location"
               v-model="form.profile.location"
               placeholder="Enter location"
               class="form-input"
@@ -823,13 +957,13 @@ const handleSubmit = () => {
           </div>
 
           <div class="form-field">
-            <label for="sub-location" class="form-label">
+            <label for="drawer-sub-location" class="form-label">
               Sub Location
               <span class="text-muted-text">(Optional)</span>
             </label>
 
             <InputText
-              id="sub-location"
+              id="drawer-sub-location"
               v-model="form.profile.subLocation"
               placeholder="Enter sub location"
               class="form-input"
@@ -843,18 +977,49 @@ const handleSubmit = () => {
         </div>
       </section>
 
-      <Divider />
-
-      <section>
-        <div class="flex items-start gap-2">
+      <section v-if="currentStep === 3">
+        <div class="mb-4 flex items-start gap-2">
           <BadgeCheck class="mt-0.5 h-4 w-4 shrink-0 text-primary" :stroke-width="2" />
 
           <div>
-            <h3 class="text-sm font-bold text-heading">Before Saving</h3>
+            <h3 class="text-sm font-bold text-heading">Review Details</h3>
 
             <p class="mt-1 text-xs leading-5 text-secondary-text">
-              Confirm that the member name, mobile number, role and password details are accurate
-              before submitting the form.
+              Confirm the details before saving.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-3">
+          <div class="review-card">
+            <p class="review-label">Member Name</p>
+            <p class="review-value">{{ fullNamePreview }}</p>
+          </div>
+
+          <div class="review-card">
+            <p class="review-label">Mobile Number</p>
+            <p class="review-value">{{ form.profile.mobileNumber || 'Not provided' }}</p>
+          </div>
+
+          <div class="review-card">
+            <p class="review-label">Email Address</p>
+            <p class="review-value">{{ form.profile.email || 'Not provided' }}</p>
+          </div>
+
+          <div class="review-card">
+            <p class="review-label">Member Status</p>
+            <p class="review-value">{{ form.status }}</p>
+          </div>
+
+          <div class="review-card">
+            <p class="review-label">Member Role</p>
+            <p class="review-value">{{ currentRoleName }}</p>
+          </div>
+
+          <div class="review-card">
+            <p class="review-label">County / Location</p>
+            <p class="review-value">
+              {{ form.profile.county || form.profile.location || 'Not provided' }}
             </p>
           </div>
         </div>
@@ -862,75 +1027,147 @@ const handleSubmit = () => {
     </form>
 
     <template #footer>
-      <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <div
+        class="flex w-full flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between"
+      >
         <Button
           type="button"
           severity="secondary"
           outlined
-          class="modal-secondary-button"
-          :disabled="isSubmitting"
-          @click="handleClose"
+          class="drawer-secondary-button"
+          :disabled="isSubmitting || isFirstStep"
+          @click="goToPreviousStep"
         >
-          Cancel
+          Back
         </Button>
 
-        <Button
-          type="submit"
-          form="cooperative-member-form"
-          class="modal-primary-button"
-          :disabled="isSubmitting"
-        >
-          <LoaderCircle v-if="isSubmitting" class="mr-2 h-4 w-4 animate-spin" :stroke-width="2" />
+        <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            severity="secondary"
+            outlined
+            class="drawer-secondary-button"
+            :disabled="isSubmitting"
+            @click="handleClose"
+          >
+            Cancel
+          </Button>
 
-          <Save v-else class="mr-2 h-4 w-4" :stroke-width="2" />
+          <Button
+            v-if="!isLastStep"
+            type="button"
+            class="drawer-primary-button"
+            :disabled="isSubmitting"
+            @click="goToNextStep"
+          >
+            Next
+          </Button>
 
-          {{ isSubmitting ? 'Saving...' : submitLabel }}
-        </Button>
+          <Button
+            v-else
+            type="submit"
+            form="cooperative-member-drawer-form"
+            class="drawer-primary-button"
+            :disabled="isSubmitting"
+          >
+            <LoaderCircle v-if="isSubmitting" class="mr-2 h-4 w-4 animate-spin" :stroke-width="2" />
+
+            <Save v-else class="mr-2 h-4 w-4" :stroke-width="2" />
+
+            {{ isSubmitting ? 'Saving...' : submitLabel }}
+          </Button>
+        </div>
       </div>
     </template>
-  </Dialog>
+  </Drawer>
 </template>
 
 <style scoped>
-:global(.cooperative-member-dialog.p-dialog) {
-  overflow: hidden;
-  border: 1px solid var(--color-border) !important;
-  border-radius: 0.875rem !important;
-  background-color: var(--color-card) !important;
-  color: var(--color-heading) !important;
-  box-shadow: 0 20px 45px rgb(0 0 0 / 18%) !important;
-}
-
-:global(.cooperative-member-dialog .p-dialog-header),
-:global(.cooperative-member-dialog .p-dialog-content),
-:global(.cooperative-member-dialog .p-dialog-footer) {
+:global(.cooperative-member-drawer.p-drawer) {
+  border-left: 1px solid var(--color-border) !important;
   background-color: var(--color-card) !important;
   color: var(--color-heading) !important;
 }
 
-:global(.cooperative-member-dialog .p-dialog-header) {
+:global(.cooperative-member-drawer .p-drawer-header),
+:global(.cooperative-member-drawer .p-drawer-content),
+:global(.cooperative-member-drawer .p-drawer-footer) {
+  background-color: var(--color-card) !important;
+  color: var(--color-heading) !important;
+}
+
+:global(.cooperative-member-drawer .p-drawer-header) {
   padding: 1.25rem 1.5rem 1rem !important;
   border-bottom: 1px solid var(--color-border) !important;
 }
 
-:global(.cooperative-member-dialog .p-dialog-content) {
-  max-height: min(72vh, 780px);
-  overflow-y: auto;
+:global(.cooperative-member-drawer .p-drawer-content) {
   padding: 1.5rem !important;
 }
 
-:global(.cooperative-member-dialog .p-dialog-footer) {
+:global(.cooperative-member-drawer .p-drawer-footer) {
   padding: 1rem 1.5rem !important;
   border-top: 1px solid var(--color-border) !important;
 }
 
-:global(.cooperative-member-dialog .p-divider.p-divider-horizontal::before) {
+:global(.cooperative-member-drawer-mask) {
+  background-color: rgb(0 0 0 / 45%) !important;
+  backdrop-filter: blur(2px);
+}
+
+:global(.cooperative-member-drawer .p-divider.p-divider-horizontal::before) {
   border-top-color: var(--color-border) !important;
 }
 
-:global(.cooperative-member-dialog-mask) {
-  background-color: rgb(0 0 0 / 52%) !important;
-  backdrop-filter: blur(2px);
+.step-button {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--color-card) 92%, var(--color-surface));
+  padding: 0.75rem;
+  color: var(--color-secondary-text);
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.step-button:hover {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-card));
+  color: var(--color-heading);
+}
+
+.step-button-active {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-card));
+  color: var(--color-heading);
+}
+
+.step-button-error {
+  border-color: var(--color-error);
+}
+
+.step-number {
+  display: flex;
+  height: 1.65rem;
+  width: 1.65rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.step-button-error .step-number {
+  background-color: var(--color-error);
 }
 
 .form-field {
@@ -984,58 +1221,80 @@ const handleSubmit = () => {
   line-height: 1.25rem;
 }
 
-:global(.cooperative-member-dialog .p-inputtext) {
+.review-card {
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background-color: color-mix(in srgb, var(--color-surface) 35%, var(--color-card));
+  padding: 0.85rem 1rem;
+}
+
+.review-label {
+  color: var(--color-muted-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.review-value {
+  margin-top: 0.35rem;
+  color: var(--color-heading);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+:global(.cooperative-member-drawer .p-inputtext) {
   padding: 0.7rem 0.8rem !important;
 }
 
-:global(.cooperative-member-dialog .p-select.form-input) {
+:global(.cooperative-member-drawer .p-select.form-input) {
   display: flex;
   align-items: center;
   padding: 0 !important;
 }
 
-:global(.cooperative-member-dialog .p-select.form-input:hover) {
+:global(.cooperative-member-drawer .p-select.form-input:hover) {
   border-color: var(--color-primary) !important;
 }
 
-:global(.cooperative-member-dialog .p-select.form-input.p-focus) {
+:global(.cooperative-member-drawer .p-select.form-input.p-focus) {
   border-color: var(--color-primary) !important;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent) !important;
 }
 
-:global(.cooperative-member-dialog .p-select.form-input.form-input-error) {
+:global(.cooperative-member-drawer .p-select.form-input.form-input-error) {
   border-color: var(--color-error) !important;
 }
 
-:global(.cooperative-member-dialog .p-select.form-input.form-input-error.p-focus) {
+:global(.cooperative-member-drawer .p-select.form-input.form-input-error.p-focus) {
   border-color: var(--color-error) !important;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-error) 18%, transparent) !important;
 }
 
-:global(.cooperative-member-dialog .p-select-label) {
+:global(.cooperative-member-drawer .p-select-label) {
   padding: 0.7rem 0.8rem !important;
   color: var(--color-heading) !important;
   font-size: 0.875rem !important;
 }
 
-:global(.cooperative-member-dialog .p-select-label.p-placeholder) {
+:global(.cooperative-member-drawer .p-select-label.p-placeholder) {
   color: var(--color-muted-text) !important;
 }
 
-:global(.cooperative-member-dialog .p-select-dropdown) {
+:global(.cooperative-member-drawer .p-select-dropdown) {
   color: var(--color-secondary-text) !important;
 }
 
-:global(.cooperative-member-dialog .modal-icon-button.p-button) {
+:global(.cooperative-member-drawer .drawer-icon-button.p-button) {
   color: var(--color-secondary-text) !important;
 }
 
-:global(.cooperative-member-dialog .modal-icon-button.p-button:hover) {
+:global(.cooperative-member-drawer .drawer-icon-button.p-button:hover) {
   background-color: color-mix(in srgb, var(--color-primary) 10%, transparent) !important;
   color: var(--color-primary) !important;
 }
 
-:global(.cooperative-member-dialog .modal-secondary-button.p-button) {
+:global(.cooperative-member-drawer .drawer-secondary-button.p-button) {
   border-color: var(--color-border) !important;
   background-color: var(--color-card) !important;
   color: var(--color-secondary-text) !important;
@@ -1043,13 +1302,13 @@ const handleSubmit = () => {
   font-weight: 700 !important;
 }
 
-:global(.cooperative-member-dialog .modal-secondary-button.p-button:hover) {
+:global(.cooperative-member-drawer .drawer-secondary-button.p-button:hover) {
   border-color: var(--color-primary) !important;
   background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-card)) !important;
   color: var(--color-primary) !important;
 }
 
-:global(.cooperative-member-dialog .modal-primary-button.p-button) {
+:global(.cooperative-member-drawer .drawer-primary-button.p-button) {
   border-color: var(--color-primary) !important;
   background-color: var(--color-primary) !important;
   color: var(--color-primary-foreground) !important;
@@ -1057,7 +1316,7 @@ const handleSubmit = () => {
   font-weight: 700 !important;
 }
 
-:global(.cooperative-member-dialog .modal-primary-button.p-button:hover) {
+:global(.cooperative-member-drawer .drawer-primary-button.p-button:hover) {
   border-color: var(--color-primary-hover) !important;
   background-color: var(--color-primary-hover) !important;
 }

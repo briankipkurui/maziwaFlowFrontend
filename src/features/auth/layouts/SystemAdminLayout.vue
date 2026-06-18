@@ -46,8 +46,16 @@ const sidebarItems = [
     icon: UsersRound,
     children: [
       {
-        label: 'Cooperative Members',
+        label: 'Members',
         path: '/admin/cooperativemembers',
+      },
+      {
+        label: 'Roles',
+        path: '/admin/cooperativemembersroles',
+      },
+      {
+        label: 'Permissions',
+        path: '/admin/cooperativememberspermissions',
       },
     ],
   },
