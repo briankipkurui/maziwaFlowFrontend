@@ -70,6 +70,7 @@ const handleLogin = async () => {
     });
 
     const roleName = response.data.user.role?.name;
+    console.log('this is the app------------------------------', roleName);
 
     if (isAdminRole(roleName)) {
       await goToWithTenant('/admin');

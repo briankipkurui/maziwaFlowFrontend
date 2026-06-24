@@ -5,15 +5,7 @@ import { useRouter } from 'vue-router';
 
 import AdminLayout from '@/layouts/admin/AdminLayout.vue';
 
-import {
-  Building2,
-  FileText,
-  LayoutDashboard,
-  Network,
-  Settings,
-  Users,
-  UsersRound,
-} from 'lucide-vue-next';
+import { Building2, Network, UsersRound } from 'lucide-vue-next';
 import { useAuthFeatureStore } from '../stores/authStore';
 
 const router = useRouter();
@@ -23,27 +15,24 @@ const { user } = storeToRefs(authStore);
 
 const sidebarItems = [
   {
-    label: 'Dashboard',
-    path: '/admin',
-    icon: LayoutDashboard,
-  },
-
-  {
     label: 'Cooperative Unions',
     path: '/admin/cooperative-unions',
     icon: Network,
+    permissions: ['cooperative-union.read.union'],
   },
 
   {
     label: 'Cooperatives',
     path: '/admin/cooperatives',
     icon: Building2,
+    permissions: ['cooperative-union.read.union', 'cooperative.read.cooperative'],
   },
 
   {
     label: 'Cooperative Members',
     path: '/admin/cooperativemembers',
     icon: UsersRound,
+    permissions: ['cooperative-member.read.member', 'role.read.role'],
     children: [
       {
         label: 'Members',
@@ -56,66 +45,7 @@ const sidebarItems = [
       {
         label: 'Permissions',
         path: '/admin/cooperativememberspermissions',
-      },
-    ],
-  },
-
-  {
-    label: 'Users',
-    path: '/admin/users',
-    icon: Users,
-    children: [
-      {
-        label: 'All Users',
-        path: '/admin/users',
-      },
-      {
-        label: 'Create User',
-        path: '/admin/users/create',
-      },
-      {
-        label: 'Users & Roles',
-        path: '/admin/users/roles',
-      },
-      {
-        label: 'Permissions',
-        path: '/admin/users/permissions',
-      },
-    ],
-  },
-
-  {
-    label: 'Reports',
-    path: '/admin/reports',
-    icon: FileText,
-    children: [
-      {
-        label: 'Milk Reports',
-        path: '/admin/reports/milk',
-      },
-      {
-        label: 'Farmer Reports',
-        path: '/admin/reports/farmers',
-      },
-      {
-        label: 'Payment Reports',
-        path: '/admin/reports/payments',
-      },
-    ],
-  },
-
-  {
-    label: 'Settings',
-    path: '/admin/settings',
-    icon: Settings,
-    children: [
-      {
-        label: 'General Settings',
-        path: '/admin/settings',
-      },
-      {
-        label: 'System Settings',
-        path: '/admin/settings/system',
+        permissions: ['cooperative'],
       },
     ],
   },

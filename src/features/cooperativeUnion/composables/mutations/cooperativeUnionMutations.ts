@@ -1,5 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/vue-query';
+
 import type { CooperativeUnionPayload } from '../../types/cooperativeUnion';
+
 import { cooperativeUnionService } from '../../services/cooperativeUnionService';
 import { cooperativeUnionQueryKeys } from '../queryKeys/cooperativeUnionQueryKeys';
 
@@ -11,7 +13,7 @@ export const useCreateCooperativeUnionMutation = () => {
 
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: cooperativeUnionQueryKeys.all,
+        queryKey: cooperativeUnionQueryKeys.lists(),
       });
     },
   });
@@ -26,7 +28,21 @@ export const useUpdateCooperativeUnionMutation = () => {
 
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: cooperativeUnionQueryKeys.all,
+        queryKey: cooperativeUnionQueryKeys.lists(),
+      });
+    },
+  });
+};
+
+export const useDeleteCooperativeUnionMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => cooperativeUnionService.delete(id),
+
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: cooperativeUnionQueryKeys.lists(),
       });
     },
   });

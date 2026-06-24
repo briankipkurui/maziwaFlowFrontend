@@ -1,6 +1,6 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import type { ApiError } from '@/types';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthFeatureStore } from '../features/auth/stores/authStore';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
@@ -31,7 +31,7 @@ const http = axios.create({
 
 http.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const authStore = useAuthStore();
+    const authStore = useAuthFeatureStore();
     const token = authStore.accessToken;
 
     if (token) {
@@ -50,7 +50,7 @@ http.interceptors.response.use(
       | (InternalAxiosRequestConfig & { _retry?: boolean })
       | undefined;
 
-    const authStore = useAuthStore();
+    const authStore = useAuthFeatureStore();
 
     if (!originalRequest) {
       return Promise.reject(error);

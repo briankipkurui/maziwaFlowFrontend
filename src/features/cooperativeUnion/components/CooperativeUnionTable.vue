@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { storeToRefs } from 'pinia';
 
-import { Pencil } from 'lucide-vue-next';
+import { LoaderCircle, Pencil, Trash2 } from 'lucide-vue-next';
 
 import Column from 'primevue/column';
 
 import EntityTable from '@/components/shared/EntityTable.vue';
+import DeleteConfirmDialog from '@/components/shared/DeleteConfirmDialog.vue';
 
 import { Button } from '@/components/ui/button';
 
@@ -15,19 +17,84 @@ import { useCooperativeUnionsQuery } from '../composables/queries/useCooperative
 
 import {
   useCreateCooperativeUnionMutation,
+  useDeleteCooperativeUnionMutation,
   useUpdateCooperativeUnionMutation,
 } from '../composables/mutations/cooperativeUnionMutations';
 
 import type { CooperativeUnion, CooperativeUnionPayload } from '../types/cooperativeUnion';
+import type { FieldErrors } from '@/utils/formErrors';
+import { useAuthFeatureStore } from '@/features/auth/stores/authStore.js';
 
 const search = ref('');
 const page = ref(1);
+const pageSize = ref(10);
 
 const isModalOpen = ref(false);
 const selectedUnion = ref<CooperativeUnion | null>(null);
 
+const isDeleteDialogOpen = ref(false);
+const unionToDelete = ref<CooperativeUnion | null>(null);
+const deletingUnionId = ref<string | null>(null);
+const deleteError = ref('');
+
+const serverErrors = ref<FieldErrors>({});
+const generalError = ref('');
+
+const authStore = useAuthFeatureStore();
+const { user, activeCooperative } = storeToRefs(authStore);
+
+/**
+ * Permission names from backend may come in slightly different casing.
+ * This makes checks safer:
+ * "Cooperative Union.Create.Union" -> "cooperative-union.create.union"
+ */
+const normalizePermissionName = (permissionName: string): string => {
+  return permissionName.trim().toLowerCase().replace(/\s+/g, '-');
+};
+
+const permissionNames = computed<string[]>(() => {
+  const names = new Set<string>();
+
+  for (const permission of user.value?.role?.permissions ?? []) {
+    if (permission.name) {
+      names.add(normalizePermissionName(permission.name));
+    }
+  }
+
+  for (const permission of activeCooperative.value?.permissions ?? []) {
+    if (permission.name) {
+      names.add(normalizePermissionName(permission.name));
+    }
+  }
+
+  for (const role of activeCooperative.value?.roles ?? []) {
+    for (const permission of role.permissions ?? []) {
+      if (permission.name) {
+        names.add(normalizePermissionName(permission.name));
+      }
+    }
+  }
+
+  return Array.from(names);
+});
+
+const hasPermission = (permissionName: string): boolean => {
+  return permissionNames.value.includes(normalizePermissionName(permissionName));
+};
+
+const hasAnyPermission = (permissionNamesToCheck: string[]): boolean => {
+  return permissionNamesToCheck.some((permissionName) => hasPermission(permissionName));
+};
+
+const canCreateUnion = computed(() => hasAnyPermission(['cooperative-union.create.union']));
+
+const canUpdateUnion = computed(() => hasAnyPermission(['cooperative-union.update.union']));
+
+const canDeleteUnion = computed(() => hasPermission('cooperative-union.delete.union'));
+
 const queryParams = computed(() => ({
   page: page.value,
+  pageSize: pageSize.value,
   search: search.value.trim() || undefined,
 }));
 
@@ -35,6 +102,7 @@ const { data, isLoading, isError, error, refetch } = useCooperativeUnionsQuery(q
 
 const createMutation = useCreateCooperativeUnionMutation();
 const updateMutation = useUpdateCooperativeUnionMutation();
+const deleteMutation = useDeleteCooperativeUnionMutation();
 
 const cooperativeUnions = computed(() => data.value?.results ?? []);
 const totalItems = computed(() => data.value?.totalItems ?? 0);
@@ -55,6 +123,89 @@ const isSubmitting = computed(
   () => createMutation.isPending.value || updateMutation.isPending.value,
 );
 
+const isDeleting = computed(() => deleteMutation.isPending.value);
+
+const clearFormErrors = () => {
+  serverErrors.value = {};
+  generalError.value = '';
+};
+
+type ApiValidationErrorItem = {
+  field?: string;
+  property?: string;
+  message?: string | string[];
+  constraints?: Record<string, string>;
+};
+
+type ApiErrorResponse = {
+  message?: string | string[];
+  error?: string;
+  errors?: Record<string, string | string[]> | ApiValidationErrorItem[];
+};
+
+const getNestedValue = (source: unknown, path: string): unknown => {
+  return path.split('.').reduce<unknown>((value, key) => {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+
+    return (value as Record<string, unknown>)[key];
+  }, source);
+};
+
+const normalizeMessage = (message: unknown): string => {
+  if (Array.isArray(message)) {
+    return message.filter(Boolean).join(', ');
+  }
+
+  if (typeof message === 'string') {
+    return message;
+  }
+
+  return '';
+};
+
+const extractMutationErrors = (error: unknown) => {
+  const responseData =
+    getNestedValue(error, 'response.data') ?? getNestedValue(error, 'data') ?? error;
+
+  const apiError = responseData as ApiErrorResponse;
+
+  const nextFieldErrors: FieldErrors = {};
+  let nextGeneralError = '';
+
+  if (Array.isArray(apiError.errors)) {
+    for (const item of apiError.errors) {
+      const field = item.field ?? item.property;
+      const message =
+        normalizeMessage(item.message) ||
+        normalizeMessage(Object.values(item.constraints ?? {})[0]);
+
+      if (field && message) {
+        nextFieldErrors[field] = message;
+      }
+    }
+  } else if (apiError.errors && typeof apiError.errors === 'object') {
+    for (const [field, message] of Object.entries(apiError.errors)) {
+      nextFieldErrors[field] = normalizeMessage(message);
+    }
+  }
+
+  if (!Object.keys(nextFieldErrors).length) {
+    const message = normalizeMessage(apiError.message);
+
+    nextGeneralError =
+      message ||
+      apiError.error ||
+      'Unable to save cooperative union. Please check the details and try again.';
+  }
+
+  return {
+    fieldErrors: nextFieldErrors,
+    generalError: nextGeneralError,
+  };
+};
+
 const handleSearch = () => {
   page.value = 1;
   refetch();
@@ -66,45 +217,136 @@ const clearSearch = () => {
   refetch();
 };
 
+const handlePageSizeChange = (value: number) => {
+  pageSize.value = value;
+  page.value = 1;
+};
+
 const nextPage = () => {
-  if (!hasNextPage.value) return;
+  if (!hasNextPage.value) {
+    return;
+  }
 
   page.value += 1;
 };
 
 const previousPage = () => {
-  if (!hasPreviousPage.value) return;
+  if (!hasPreviousPage.value) {
+    return;
+  }
 
   page.value -= 1;
 };
 
 const openCreateModal = () => {
+  if (!canCreateUnion.value) {
+    return;
+  }
+
+  clearFormErrors();
   selectedUnion.value = null;
   isModalOpen.value = true;
 };
 
 const openUpdateModal = (union: CooperativeUnion) => {
+  if (!canUpdateUnion.value) {
+    return;
+  }
+
+  clearFormErrors();
   selectedUnion.value = union;
   isModalOpen.value = true;
 };
 
 const closeModal = () => {
+  if (isSubmitting.value) {
+    return;
+  }
+
+  clearFormErrors();
   isModalOpen.value = false;
   selectedUnion.value = null;
 };
 
 const handleSubmitUnion = async (payload: CooperativeUnionPayload) => {
-  if (selectedUnion.value) {
-    await updateMutation.mutateAsync({
-      id: selectedUnion.value.id,
-      payload,
-    });
-  } else {
-    await createMutation.mutateAsync(payload);
+  clearFormErrors();
+
+  try {
+    if (selectedUnion.value) {
+      if (!canUpdateUnion.value) {
+        generalError.value = 'You do not have permission to update cooperative unions.';
+        return;
+      }
+
+      await updateMutation.mutateAsync({
+        id: selectedUnion.value.id,
+        payload,
+      });
+    } else {
+      if (!canCreateUnion.value) {
+        generalError.value = 'You do not have permission to create cooperative unions.';
+        return;
+      }
+
+      await createMutation.mutateAsync(payload);
+    }
+
+    await refetch();
+    closeModal();
+  } catch (error) {
+    const extractedErrors = extractMutationErrors(error);
+
+    serverErrors.value = extractedErrors.fieldErrors;
+    generalError.value = extractedErrors.generalError;
+  }
+};
+
+const openDeleteDialog = (union: CooperativeUnion) => {
+  if (!canDeleteUnion.value) {
+    return;
   }
 
-  await refetch();
-  closeModal();
+  deleteError.value = '';
+  unionToDelete.value = union;
+  isDeleteDialogOpen.value = true;
+};
+
+const closeDeleteDialog = () => {
+  if (isDeleting.value) {
+    return;
+  }
+
+  deleteError.value = '';
+  unionToDelete.value = null;
+  isDeleteDialogOpen.value = false;
+};
+
+const handleConfirmDeleteUnion = async () => {
+  if (!unionToDelete.value) {
+    return;
+  }
+
+  if (!canDeleteUnion.value) {
+    deleteError.value = 'You do not have permission to delete cooperative unions.';
+    return;
+  }
+
+  deletingUnionId.value = unionToDelete.value.id;
+  deleteError.value = '';
+
+  try {
+    await deleteMutation.mutateAsync(unionToDelete.value.id);
+    await refetch();
+    closeDeleteDialog();
+  } catch (error) {
+    console.error(error);
+
+    const extractedErrors = extractMutationErrors(error);
+    deleteError.value =
+      extractedErrors.generalError || 'Unable to delete cooperative union. Please try again.';
+  } finally {
+    deletingUnionId.value = null;
+  }
 };
 
 const formatDate = (date: string) => {
@@ -119,6 +361,7 @@ const formatDate = (date: string) => {
 <template>
   <EntityTable
     v-model:search-value="search"
+    v-model:page-size="pageSize"
     title="Cooperative Unions"
     description="Manage cooperative unions and their registration details."
     search-placeholder="Search cooperative unions"
@@ -130,18 +373,20 @@ const formatDate = (date: string) => {
     :total-pages="totalPages"
     :has-previous-page="hasPreviousPage"
     :has-next-page="hasNextPage"
+    :page-size-options="[10, 50, 100]"
     :is-loading="isLoading"
     :is-error="isError"
     :error-message="errorMessage"
+    :can-create="canCreateUnion"
+    @page-size-change="handlePageSizeChange"
     @search="handleSearch"
     @clear="clearSearch"
-    @refresh="refetch()"
+    @refresh="() => refetch()"
     @create="openCreateModal"
     @previous="previousPage"
     @next="nextPage"
   >
     <template #columns>
-      <!-- Union Information -->
       <Column header="Union Information" header-class="w-[28%]">
         <template #body="{ data: union }">
           <div class="flex items-center gap-3.5">
@@ -160,7 +405,6 @@ const formatDate = (date: string) => {
         </template>
       </Column>
 
-      <!-- County -->
       <Column field="county" header="County">
         <template #body="{ data: union }">
           <span class="text-sm font-medium text-secondary-text">
@@ -169,7 +413,6 @@ const formatDate = (date: string) => {
         </template>
       </Column>
 
-      <!-- Ward -->
       <Column field="ward" header="Ward">
         <template #body="{ data: union }">
           <span class="text-sm font-medium text-secondary-text">
@@ -178,7 +421,6 @@ const formatDate = (date: string) => {
         </template>
       </Column>
 
-      <!-- KRA PIN -->
       <Column field="kraPin" header="KRA PIN">
         <template #body="{ data: union }">
           <span
@@ -189,7 +431,6 @@ const formatDate = (date: string) => {
         </template>
       </Column>
 
-      <!-- Created At -->
       <Column field="createdAt" header="Created At">
         <template #body="{ data: union }">
           <span class="text-sm font-medium text-secondary-text">
@@ -198,20 +439,41 @@ const formatDate = (date: string) => {
         </template>
       </Column>
 
-      <!-- Actions -->
-      <Column header="Action" header-class="text-right">
+      <Column v-if="canUpdateUnion || canDeleteUnion" header="Action" header-class="text-right">
         <template #body="{ data: union }">
-          <div class="flex justify-end">
+          <div class="flex justify-end gap-2">
             <Button
+              v-if="canUpdateUnion"
               type="button"
               variant="outline"
               class="h-9 cursor-pointer gap-1.5 rounded-lg border-border/60 bg-card px-3 text-xs font-semibold text-secondary-text shadow-none transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary"
               title="Edit cooperative union"
+              :disabled="deletingUnionId === union.id"
               @click.stop="openUpdateModal(union)"
             >
               <Pencil class="h-3.5 w-3.5" :stroke-width="2" />
 
               Edit
+            </Button>
+
+            <Button
+              v-if="canDeleteUnion"
+              type="button"
+              variant="outline"
+              class="h-9 cursor-pointer gap-1.5 rounded-lg border-border/60 bg-card px-3 text-xs font-semibold text-error shadow-none transition-colors hover:border-error hover:bg-error/10 hover:text-error disabled:cursor-not-allowed disabled:opacity-60"
+              title="Delete cooperative union"
+              :disabled="isDeleting"
+              @click.stop="openDeleteDialog(union)"
+            >
+              <LoaderCircle
+                v-if="deletingUnionId === union.id"
+                class="h-3.5 w-3.5 animate-spin"
+                :stroke-width="2"
+              />
+
+              <Trash2 v-else class="h-3.5 w-3.5" :stroke-width="2" />
+
+              {{ deletingUnionId === union.id ? 'Deleting...' : 'Delete' }}
             </Button>
           </div>
         </template>
@@ -225,7 +487,20 @@ const formatDate = (date: string) => {
     :open="isModalOpen"
     :union="selectedUnion"
     :is-submitting="isSubmitting"
+    :server-errors="serverErrors"
+    :general-error="generalError"
     @close="closeModal"
     @submit="handleSubmitUnion"
+  />
+
+  <DeleteConfirmDialog
+    :open="isDeleteDialogOpen"
+    title="Delete Cooperative Union"
+    :item-name="unionToDelete?.name ?? ''"
+    confirm-label="Delete Union"
+    :is-deleting="isDeleting"
+    :error-message="deleteError"
+    @close="closeDeleteDialog"
+    @confirm="handleConfirmDeleteUnion"
   />
 </template>

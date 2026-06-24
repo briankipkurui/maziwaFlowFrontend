@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { storeToRefs } from 'pinia';
 
-import { Pencil } from 'lucide-vue-next';
+import { LoaderCircle, Pencil, Trash2 } from 'lucide-vue-next';
 
 import Column from 'primevue/column';
 
 import EntityTable from '@/components/shared/EntityTable.vue';
+import DeleteConfirmDialog from '@/components/shared/DeleteConfirmDialog.vue';
+
 import { Button } from '@/components/ui/button';
 
 import CooperativeModal from './CooperativeModal.vue';
@@ -14,27 +17,92 @@ import { useCooperativesQuery } from '../composables/queries/cooperativeQueries.
 
 import {
   useCreateCooperativeMutation,
+  useDeleteCooperativeMutation,
   useUpdateCooperativeMutation,
 } from '../composables/mutations/cooperativeMutations.ts';
 
 import type { Cooperative, CooperativePayload } from '../types/cooperative.ts';
+import type { FieldErrors } from '@/utils/formErrors';
+import { useAuthFeatureStore } from '@/features/auth/stores/authStore.js';
 
-const searchInput = ref('');
-const appliedSearch = ref('');
+const search = ref('');
 const page = ref(1);
+const pageSize = ref(10);
 
 const isModalOpen = ref(false);
 const selectedCooperative = ref<Cooperative | null>(null);
 
+const isDeleteDialogOpen = ref(false);
+const cooperativeToDelete = ref<Cooperative | null>(null);
+const deletingCooperativeId = ref<string | null>(null);
+const deleteError = ref('');
+
+const serverErrors = ref<FieldErrors>({});
+const generalError = ref('');
+
+const authStore = useAuthFeatureStore();
+const { user, activeCooperative } = storeToRefs(authStore);
+
+/**
+ * Permission names from backend may come in slightly different casing.
+ * This makes checks safer:
+ * "Cooperative.Create.Cooperative" -> "cooperative.create.cooperative"
+ */
+const normalizePermissionName = (permissionName: string): string => {
+  return permissionName.trim().toLowerCase().replace(/\s+/g, '-');
+};
+
+const permissionNames = computed<string[]>(() => {
+  const names = new Set<string>();
+
+  for (const permission of user.value?.role?.permissions ?? []) {
+    if (permission.name) {
+      names.add(normalizePermissionName(permission.name));
+    }
+  }
+
+  for (const permission of activeCooperative.value?.permissions ?? []) {
+    if (permission.name) {
+      names.add(normalizePermissionName(permission.name));
+    }
+  }
+
+  for (const role of activeCooperative.value?.roles ?? []) {
+    for (const permission of role.permissions ?? []) {
+      if (permission.name) {
+        names.add(normalizePermissionName(permission.name));
+      }
+    }
+  }
+
+  return Array.from(names);
+});
+
+const hasPermission = (permissionName: string): boolean => {
+  return permissionNames.value.includes(normalizePermissionName(permissionName));
+};
+
+const hasAnyPermission = (permissionNamesToCheck: string[]): boolean => {
+  return permissionNamesToCheck.some((permissionName) => hasPermission(permissionName));
+};
+
+const canCreateCooperative = computed(() => hasAnyPermission(['cooperative.create.cooperative']));
+
+const canUpdateCooperative = computed(() => hasAnyPermission(['cooperative.update.cooperative']));
+
+const canDeleteCooperative = computed(() => hasAnyPermission(['cooperative.delete.cooperative']));
+
 const queryParams = computed(() => ({
   page: page.value,
-  search: appliedSearch.value || undefined,
+  pageSize: pageSize.value,
+  search: search.value.trim() || undefined,
 }));
 
 const { data, isLoading, isError, error, refetch } = useCooperativesQuery(queryParams);
 
 const createMutation = useCreateCooperativeMutation();
 const updateMutation = useUpdateCooperativeMutation();
+const deleteMutation = useDeleteCooperativeMutation();
 
 const cooperatives = computed(() => data.value?.results ?? []);
 const totalItems = computed(() => data.value?.totalItems ?? 0);
@@ -55,14 +123,102 @@ const isSubmitting = computed(
   () => createMutation.isPending.value || updateMutation.isPending.value,
 );
 
+const isDeleting = computed(() => deleteMutation.isPending.value);
+
+const clearFormErrors = () => {
+  serverErrors.value = {};
+  generalError.value = '';
+};
+
+type ApiValidationErrorItem = {
+  field?: string;
+  property?: string;
+  message?: string | string[];
+  constraints?: Record<string, string>;
+};
+
+type ApiErrorResponse = {
+  message?: string | string[];
+  error?: string;
+  errors?: Record<string, string | string[]> | ApiValidationErrorItem[];
+};
+
+const getNestedValue = (source: unknown, path: string): unknown => {
+  return path.split('.').reduce<unknown>((value, key) => {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+
+    return (value as Record<string, unknown>)[key];
+  }, source);
+};
+
+const normalizeMessage = (message: unknown): string => {
+  if (Array.isArray(message)) {
+    return message.filter(Boolean).join(', ');
+  }
+
+  if (typeof message === 'string') {
+    return message;
+  }
+
+  return '';
+};
+
+const extractMutationErrors = (error: unknown) => {
+  const responseData =
+    getNestedValue(error, 'response.data') ?? getNestedValue(error, 'data') ?? error;
+
+  const apiError = responseData as ApiErrorResponse;
+
+  const nextFieldErrors: FieldErrors = {};
+  let nextGeneralError = '';
+
+  if (Array.isArray(apiError.errors)) {
+    for (const item of apiError.errors) {
+      const field = item.field ?? item.property;
+      const message =
+        normalizeMessage(item.message) ||
+        normalizeMessage(Object.values(item.constraints ?? {})[0]);
+
+      if (field && message) {
+        nextFieldErrors[field] = message;
+      }
+    }
+  } else if (apiError.errors && typeof apiError.errors === 'object') {
+    for (const [field, message] of Object.entries(apiError.errors)) {
+      nextFieldErrors[field] = normalizeMessage(message);
+    }
+  }
+
+  if (!Object.keys(nextFieldErrors).length) {
+    const message = normalizeMessage(apiError.message);
+
+    nextGeneralError =
+      message ||
+      apiError.error ||
+      'Unable to save cooperative. Please check the details and try again.';
+  }
+
+  return {
+    fieldErrors: nextFieldErrors,
+    generalError: nextGeneralError,
+  };
+};
+
 const handleSearch = () => {
   page.value = 1;
-  appliedSearch.value = searchInput.value.trim();
+  refetch();
 };
 
 const clearSearch = () => {
-  searchInput.value = '';
-  appliedSearch.value = '';
+  search.value = '';
+  page.value = 1;
+  refetch();
+};
+
+const handlePageSizeChange = (value: number) => {
+  pageSize.value = value;
   page.value = 1;
 };
 
@@ -83,31 +239,114 @@ const previousPage = () => {
 };
 
 const openCreateModal = () => {
+  if (!canCreateCooperative.value) {
+    return;
+  }
+
+  clearFormErrors();
   selectedCooperative.value = null;
   isModalOpen.value = true;
 };
 
 const openUpdateModal = (cooperative: Cooperative) => {
+  if (!canUpdateCooperative.value) {
+    return;
+  }
+
+  clearFormErrors();
   selectedCooperative.value = cooperative;
   isModalOpen.value = true;
 };
 
 const closeModal = () => {
+  if (isSubmitting.value) {
+    return;
+  }
+
+  clearFormErrors();
   isModalOpen.value = false;
   selectedCooperative.value = null;
 };
 
 const handleSubmitCooperative = async (payload: CooperativePayload) => {
-  if (selectedCooperative.value) {
-    await updateMutation.mutateAsync({
-      id: selectedCooperative.value.id,
-      payload,
-    });
-  } else {
-    await createMutation.mutateAsync(payload);
+  clearFormErrors();
+
+  try {
+    if (selectedCooperative.value) {
+      if (!canUpdateCooperative.value) {
+        generalError.value = 'You do not have permission to update cooperatives.';
+        return;
+      }
+
+      await updateMutation.mutateAsync({
+        id: selectedCooperative.value.id,
+        payload,
+      });
+    } else {
+      if (!canCreateCooperative.value) {
+        generalError.value = 'You do not have permission to create cooperatives.';
+        return;
+      }
+
+      await createMutation.mutateAsync(payload);
+    }
+
+    await refetch();
+    closeModal();
+  } catch (error) {
+    const extractedErrors = extractMutationErrors(error);
+
+    serverErrors.value = extractedErrors.fieldErrors;
+    generalError.value = extractedErrors.generalError;
+  }
+};
+
+const openDeleteDialog = (cooperative: Cooperative) => {
+  if (!canDeleteCooperative.value) {
+    return;
   }
 
-  closeModal();
+  deleteError.value = '';
+  cooperativeToDelete.value = cooperative;
+  isDeleteDialogOpen.value = true;
+};
+
+const closeDeleteDialog = () => {
+  if (isDeleting.value) {
+    return;
+  }
+
+  deleteError.value = '';
+  cooperativeToDelete.value = null;
+  isDeleteDialogOpen.value = false;
+};
+
+const handleConfirmDeleteCooperative = async () => {
+  if (!cooperativeToDelete.value) {
+    return;
+  }
+
+  if (!canDeleteCooperative.value) {
+    deleteError.value = 'You do not have permission to delete cooperatives.';
+    return;
+  }
+
+  deletingCooperativeId.value = cooperativeToDelete.value.id;
+  deleteError.value = '';
+
+  try {
+    await deleteMutation.mutateAsync(cooperativeToDelete.value.id);
+    await refetch();
+    closeDeleteDialog();
+  } catch (error) {
+    console.error(error);
+
+    const extractedErrors = extractMutationErrors(error);
+    deleteError.value =
+      extractedErrors.generalError || 'Unable to delete cooperative. Please try again.';
+  } finally {
+    deletingCooperativeId.value = null;
+  }
 };
 
 const formatDate = (date?: string) => {
@@ -128,7 +367,11 @@ const formatDate = (date?: string) => {
   });
 };
 
-const getInitials = (groupName: string) => {
+const getInitials = (groupName?: string) => {
+  if (!groupName) {
+    return 'CO';
+  }
+
   return groupName
     .split(' ')
     .filter(Boolean)
@@ -140,7 +383,8 @@ const getInitials = (groupName: string) => {
 
 <template>
   <EntityTable
-    v-model:search-value="searchInput"
+    v-model:search-value="search"
+    v-model:page-size="pageSize"
     title="Cooperatives"
     description="Manage registered cooperatives and their details."
     search-placeholder="Search cooperatives"
@@ -152,11 +396,14 @@ const getInitials = (groupName: string) => {
     :total-pages="totalPages"
     :has-previous-page="hasPreviousPage"
     :has-next-page="hasNextPage"
+    :page-size-options="[10, 50, 100]"
     :is-loading="isLoading"
     :is-error="isError"
     :error-message="errorMessage"
+    :can-create="canCreateCooperative"
     data-key="id"
     wide
+    @page-size-change="handlePageSizeChange"
     @search="handleSearch"
     @clear="clearSearch"
     @refresh="() => refetch()"
@@ -165,12 +412,11 @@ const getInitials = (groupName: string) => {
     @next="nextPage"
   >
     <template #columns>
-      <!-- Cooperative Information -->
-      <Column header="Cooperative Information" style="width: 28%">
+      <Column header="Cooperative Information" header-class="w-[28%]">
         <template #body="{ data: cooperative }">
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3.5">
             <div
-              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-xs font-bold text-primary"
+              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-sm font-bold text-primary"
             >
               {{ getInitials(cooperative.groupName) }}
             </div>
@@ -184,8 +430,7 @@ const getInitials = (groupName: string) => {
         </template>
       </Column>
 
-      <!-- Code -->
-      <Column header="Code">
+      <Column field="code" header="Code">
         <template #body="{ data: cooperative }">
           <span class="text-sm font-medium text-secondary-text">
             {{ cooperative.code || 'Not provided' }}
@@ -193,8 +438,7 @@ const getInitials = (groupName: string) => {
         </template>
       </Column>
 
-      <!-- County -->
-      <Column header="County">
+      <Column field="county" header="County">
         <template #body="{ data: cooperative }">
           <span class="text-sm font-medium text-secondary-text">
             {{ cooperative.county || 'Not specified' }}
@@ -202,8 +446,7 @@ const getInitials = (groupName: string) => {
         </template>
       </Column>
 
-      <!-- Main Activity -->
-      <Column header="Main Activity">
+      <Column field="mainActivity" header="Main Activity">
         <template #body="{ data: cooperative }">
           <span class="text-sm font-medium text-secondary-text">
             {{ cooperative.mainActivity || 'Not specified' }}
@@ -211,38 +454,35 @@ const getInitials = (groupName: string) => {
         </template>
       </Column>
 
-      <!-- Insurance -->
-      <Column header="Insurance">
+      <Column field="hasInsurance" header="Insurance">
         <template #body="{ data: cooperative }">
           <span
             v-if="cooperative.hasInsurance"
-            class="inline-flex rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success ring-1 ring-success/20"
+            class="inline-flex rounded-full border border-success/20 bg-success/10 px-3 py-1 text-xs font-semibold text-success"
           >
             Insured
           </span>
 
           <span
             v-else
-            class="inline-flex rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-secondary-text ring-1 ring-border"
+            class="inline-flex rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-secondary-text"
           >
             Not insured
           </span>
         </template>
       </Column>
 
-      <!-- KRA PIN -->
-      <Column header="KRA PIN">
+      <Column field="kraPin" header="KRA PIN">
         <template #body="{ data: cooperative }">
           <span
-            class="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary ring-1 ring-primary/20"
+            class="inline-flex rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
           >
             {{ cooperative.kraPin || 'Not provided' }}
           </span>
         </template>
       </Column>
 
-      <!-- Created Date -->
-      <Column header="Created At">
+      <Column field="createdAt" header="Created At">
         <template #body="{ data: cooperative }">
           <span class="text-sm font-medium text-secondary-text">
             {{ formatDate(cooperative.createdAt) }}
@@ -250,20 +490,45 @@ const getInitials = (groupName: string) => {
         </template>
       </Column>
 
-      <!-- Actions -->
-      <Column header="Action" style="width: 110px">
+      <Column
+        v-if="canUpdateCooperative || canDeleteCooperative"
+        header="Action"
+        header-class="text-right"
+      >
         <template #body="{ data: cooperative }">
-          <div class="flex justify-end">
+          <div class="flex justify-end gap-2">
             <Button
+              v-if="canUpdateCooperative"
               type="button"
               variant="outline"
-              class="h-8 cursor-pointer gap-1 rounded-lg border-border bg-card px-3 text-xs font-semibold text-secondary-text shadow-none transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary"
+              class="h-9 cursor-pointer gap-1.5 rounded-lg border-border/60 bg-card px-3 text-xs font-semibold text-secondary-text shadow-none transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary"
               title="Edit cooperative"
+              :disabled="deletingCooperativeId === cooperative.id"
               @click.stop="openUpdateModal(cooperative)"
             >
               <Pencil class="h-3.5 w-3.5" :stroke-width="2" />
 
               Edit
+            </Button>
+
+            <Button
+              v-if="canDeleteCooperative"
+              type="button"
+              variant="outline"
+              class="h-9 cursor-pointer gap-1.5 rounded-lg border-border/60 bg-card px-3 text-xs font-semibold text-error shadow-none transition-colors hover:border-error hover:bg-error/10 hover:text-error disabled:cursor-not-allowed disabled:opacity-60"
+              title="Delete cooperative"
+              :disabled="isDeleting"
+              @click.stop="openDeleteDialog(cooperative)"
+            >
+              <LoaderCircle
+                v-if="deletingCooperativeId === cooperative.id"
+                class="h-3.5 w-3.5 animate-spin"
+                :stroke-width="2"
+              />
+
+              <Trash2 v-else class="h-3.5 w-3.5" :stroke-width="2" />
+
+              {{ deletingCooperativeId === cooperative.id ? 'Deleting...' : 'Delete' }}
             </Button>
           </div>
         </template>
@@ -277,7 +542,20 @@ const getInitials = (groupName: string) => {
     :open="isModalOpen"
     :cooperative="selectedCooperative"
     :is-submitting="isSubmitting"
+    :server-errors="serverErrors"
+    :general-error="generalError"
     @close="closeModal"
     @submit="handleSubmitCooperative"
+  />
+
+  <DeleteConfirmDialog
+    :open="isDeleteDialogOpen"
+    title="Delete Cooperative"
+    :item-name="cooperativeToDelete?.groupName ?? ''"
+    confirm-label="Delete Cooperative"
+    :is-deleting="isDeleting"
+    :error-message="deleteError"
+    @close="closeDeleteDialog"
+    @confirm="handleConfirmDeleteCooperative"
   />
 </template>

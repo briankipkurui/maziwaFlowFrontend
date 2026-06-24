@@ -32,6 +32,6 @@ export interface CooperativeUnionResponse {
 
 export interface CooperativeUnionListParams {
   page?: number;
-  limit?: number;
+  pageSize?: number;
   search?: string;
 }

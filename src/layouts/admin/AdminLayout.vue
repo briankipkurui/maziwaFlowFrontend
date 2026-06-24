@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Component } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
 
 import { Bell, ChevronDown, CircleHelp, Megaphone, Moon, Sun } from 'lucide-vue-next';
 
@@ -16,10 +17,13 @@ import PanelMenu from 'primevue/panelmenu';
 import ScrollPanel from 'primevue/scrollpanel';
 
 import type { MenuItem } from 'primevue/menuitem';
+import { useAuthFeatureStore } from '@/features/auth/stores/authStore';
 
 /* ============================================================
    TYPES
 ============================================================ */
+
+type PermissionMode = 'any' | 'all';
 
 type ChildSidebarItem = {
   label: string;
@@ -27,6 +31,18 @@ type ChildSidebarItem = {
   icon?: Component;
   badge?: string;
   children?: ChildSidebarItem[];
+
+  /**
+   * Add this on menu items where permission is required.
+   * Example: permissions: ['cooperative-union.view.union']
+   */
+  permissions?: string[];
+
+  /**
+   * any = user needs at least one permission.
+   * all = user must have all listed permissions.
+   */
+  permissionMode?: PermissionMode;
 };
 
 type SidebarItem = {
@@ -35,6 +51,9 @@ type SidebarItem = {
   icon: Component;
   badge?: string;
   children?: ChildSidebarItem[];
+
+  permissions?: string[];
+  permissionMode?: PermissionMode;
 };
 
 type UserMenuItem = {
@@ -74,7 +93,6 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  logout: [];
   announcements: [];
 }>();
 
@@ -85,6 +103,9 @@ const emit = defineEmits<{
 const route = useRoute();
 const router = useRouter();
 
+const authStore = useAuthFeatureStore();
+const { user, activeCooperative } = storeToRefs(authStore);
+
 const MOBILE_BREAKPOINT = 768;
 
 const isMobile = ref(false);
@@ -94,6 +115,138 @@ const theme = ref<Theme>('dark');
 const expandedKeys = ref<Record<string, boolean>>({});
 
 const userPopupMenu = ref<InstanceType<typeof Menu> | null>(null);
+
+/* ============================================================
+   AUTH PERMISSIONS
+============================================================ */
+
+const permissionNames = computed<string[]>(() => {
+  const names = new Set<string>();
+
+  /**
+   * User role permissions.
+   */
+  for (const permission of user.value?.role?.permissions ?? []) {
+    if (permission.name) {
+      names.add(permission.name);
+    }
+  }
+
+  /**
+   * Active cooperative direct permissions.
+   */
+  for (const permission of activeCooperative.value?.permissions ?? []) {
+    if (permission.name) {
+      names.add(permission.name);
+    }
+  }
+
+  /**
+   * Active cooperative role permissions.
+   */
+  for (const role of activeCooperative.value?.roles ?? []) {
+    for (const permission of role.permissions ?? []) {
+      if (permission.name) {
+        names.add(permission.name);
+      }
+    }
+  }
+
+  return Array.from(names);
+});
+
+const hasPermission = (permission: string): boolean => {
+  return permissionNames.value.includes(permission);
+};
+
+const hasAnyPermission = (permissions: string[]): boolean => {
+  if (!permissions.length) {
+    return true;
+  }
+
+  return permissions.some((permission) => hasPermission(permission));
+};
+
+const hasAllPermissions = (permissions: string[]): boolean => {
+  if (!permissions.length) {
+    return true;
+  }
+
+  return permissions.every((permission) => hasPermission(permission));
+};
+
+const canAccessSidebarItem = (item: SidebarItem | ChildSidebarItem): boolean => {
+  const permissions = item.permissions ?? [];
+
+  if (!permissions.length) {
+    return true;
+  }
+
+  if (item.permissionMode === 'all') {
+    return hasAllPermissions(permissions);
+  }
+
+  return hasAnyPermission(permissions);
+};
+
+const filterChildSidebarItems = (items?: ChildSidebarItem[]): ChildSidebarItem[] => {
+  return (items ?? [])
+    .map((item) => {
+      const filteredChildren = filterChildSidebarItems(item.children);
+
+      return {
+        ...item,
+        children: filteredChildren,
+      };
+    })
+    .filter((item) => {
+      const hasVisibleChildren = Boolean(item.children?.length);
+
+      /**
+       * Show the item if:
+       * 1. It has no permission requirement, OR
+       * 2. User has the required permission, OR
+       * 3. It has at least one visible child.
+       */
+      return canAccessSidebarItem(item) || hasVisibleChildren;
+    });
+};
+
+const permittedSidebarItems = computed<SidebarItem[]>(() => {
+  return props.sidebarItems
+    .map((item) => {
+      const filteredChildren = filterChildSidebarItems(item.children);
+
+      return {
+        ...item,
+        children: filteredChildren,
+      };
+    })
+    .filter((item) => {
+      const hasVisibleChildren = Boolean(item.children?.length);
+
+      return canAccessSidebarItem(item) || hasVisibleChildren;
+    });
+});
+
+/* ============================================================
+   LOGOUT
+============================================================ */
+
+const handleLogout = () => {
+  authStore.logout();
+
+  isDrawerVisible.value = false;
+
+  sessionStorage.removeItem('lastAuthenticatedRoute');
+
+  void router.replace({
+    path: '/login',
+    query: {
+      logout: '1',
+    },
+  });
+};
 
 /* ============================================================
    THEME
@@ -180,7 +333,7 @@ const mapChildSidebarItem = (item: ChildSidebarItem, level: number): PrimeSideba
 };
 
 const sidebarMenuItems = computed<PrimeSidebarItem[]>(() => {
-  return props.sidebarItems.map((item) => {
+  return permittedSidebarItems.value.map((item) => {
     const hasChildren = Boolean(item.children?.length);
 
     return {
@@ -364,7 +517,7 @@ const profileMenuItems = computed<PrimeProfileItem[]>(() => {
 
       command: () => {
         if (item.danger) {
-          emit('logout');
+          handleLogout();
 
           return;
         }
@@ -568,7 +721,7 @@ onBeforeUnmount(() => {
               text
               severity="danger"
               aria-label="Logout"
-              @click="emit('logout')"
+              @click="handleLogout"
             />
           </div>
         </div>
@@ -722,7 +875,7 @@ onBeforeUnmount(() => {
           text
           severity="danger"
           aria-label="Logout"
-          @click="emit('logout')"
+          @click="handleLogout"
         />
       </div>
     </aside>
